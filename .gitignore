@@ -1,0 +1,13 @@
+node_modules
+/qdrant_storage/*
+.DS_Store
+/*/**/.DS_Store
+/other_files
+/.cache
+/build
+/public/build
+/public/uploads
+# prisma related
+.env
+/prisma/dev.db
+.vercel
