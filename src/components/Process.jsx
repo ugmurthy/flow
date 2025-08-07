@@ -1,8 +1,8 @@
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 
-function Root({ data }) {
-  console.log("Root ", data)
+function Process({ data }) {
+  console.log("Process ", data)
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-stone-400">
       <div className="flex">
@@ -15,14 +15,18 @@ function Root({ data }) {
         </div>
       </div>
 
-      
-      <Handle
-        type="target"
-        position={Position.Bottom}
-        className="w-4 h-4 !bg-teal-200 text-xs font-thin text-center"
-      >^</Handle>
+     <Handle
+             type="target"
+             position={Position.Bottom}
+             className="w-4 h-4 !bg-teal-200 text-xs font-thin text-center"
+           >^</Handle>
+           <Handle
+             type="source"
+             position={Position.Top}
+             className="w-4 h-4 !bg-blue-200 text-xs font-thin text-center"
+           >v</Handle>
     </div>
   );
 }
 
-export default Root;
+export default Process;
