@@ -10,7 +10,7 @@ function Root({ data }) {
           {data.emoji}
         </div>
         <div className="ml-2">
-          <div className="text-lg font-bold">{data.label}</div>
+          <div className="text-lg font-thin">{data.label}</div>
           <div className="text-gray-500">{data.function}</div>
         </div>
       </div>
@@ -19,10 +19,10 @@ function Root({ data }) {
       <Handle
         type="target"
         position={Position.Bottom}
-        className="w-4 h-4 !bg-teal-200 text-xs font-thin text-center"
-      >^</Handle>
+        
+      ></Handle>
     </div>
   );
 }
 
-export default Root;
+export default memo(Root);

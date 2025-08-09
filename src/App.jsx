@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Background, Controls, Panel } from '@xyflow/react';
+import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Background, Controls, Panel, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import './tailwind-config.js';
-
+//import './tailwind-config.js';
+import './index.css'
 import  TextUpdateNode  from './components/TextUpdateNode';
 import Root from './components/Root'
 import Process from './components/Process.jsx'
@@ -65,7 +65,8 @@ const nodeTypes = {
       >
         <Panel position="top-center" className='text-2xl text-blue-500'>JobRunner Workflow</Panel>
         <Panel position="bottom-right">V0.0.1</Panel>
-        <Background />
+        <Background variant={BackgroundVariant.Lines} gap={10} color="#f1f1f1" id="1"/>
+        <Background variant={BackgroundVariant.Lines} gap={100} color="#ccc" id="2"/>
         <Controls />
       </ReactFlow>
       

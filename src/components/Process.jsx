@@ -29,4 +29,4 @@ function Process({ data }) {
   );
 }
 
-export default Process;
+export default memo(Process);

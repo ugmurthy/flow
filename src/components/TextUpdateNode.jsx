@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback,memo } from "react";
 
 function TextUpdateNode(props) {
 
@@ -17,5 +17,5 @@ function TextUpdateNode(props) {
   );
 }
 
-export default  TextUpdateNode
+export default  memo(TextUpdateNode)
 
