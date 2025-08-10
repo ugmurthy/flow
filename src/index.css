@@ -64,3 +64,17 @@
   border-radius: 4px;
   background: #e5e7eb;
 }
+
+/* Style for the edge path */
+div.react-flow .react-flow__edge-path {
+  stroke: #42423f !important; /* Edge color (e.g., a shade of blue) */
+  stroke-width: 1px !important; /* Edge thickness (in pixels) */
+}
+
+
+
+/* Styles for selected edges */
+div.react-flow .react-flow__edge.selected .react-flow__edge-path {
+   stroke: #4a90e2 !important; /* Edge color (e.g., a shade of blue) */
+  stroke-width: 2px !important; /* Edge thickness (in pixels) */
+}
