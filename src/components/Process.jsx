@@ -8,6 +8,7 @@ function Process({ data }) {
   const currentNodeId = useNodeId();
   const {getNodes, getEdges} = useReactFlow();
   const edges = useEdges(); // use useEdges to react to edge Changes
+  
   // get Connected nodes' formData
   const connectedFormData = () => {
     const nodes = getNodes();

@@ -1,12 +1,67 @@
-# React + Vite
+# JobRunner Workflow
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React Flow-based workflow builder with dynamic form nodes for creating interactive job processing pipelines.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Interactive Workflow Canvas**: Drag-and-drop interface using React Flow
+- **Dynamic Form Nodes**: Configurable form nodes with various input types
+- **Multiple Node Types**: Root, Process, Leaf, and Form nodes
+- **Real-time Form Editing**: Modal-based form editing with live preview
+- **File Upload Support**: file uploads with validation
+- **Form Validation**: Built-in validation using react-hook-form
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- React 19.1.0
+- React Flow (@xyflow/react)
+- React Hook Form
+- Tailwind CSS
+- Vite
+
+## Quick Start
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm run dev
+
+# Build for production
+pnpm run build
+
+# Preview production build
+pnpm run preview
+```
+
+## Node Types
+
+- **Root Node** (😎): End Node : Work in Progress.
+- **Process Node** (⚙️): Processing steps with connections
+- **Leaf Node** (🍁): Input node (may be removed in future in view of form nodes)
+- **Form Node** (📝): Dynamic forms with various field types
+
+## Form Field Types
+
+Text, Email, URL, Number, Textarea, Select, Range, DateTime, Time, File Upload, Checkbox, Hidden
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── DynamicForm.jsx    # Dynamic form generator
+│   ├── FormNode.jsx       # Form node component
+│   ├── Process.jsx        # Process node component
+│   ├── Root.jsx          # Root node component
+│   ├── Leaf.jsx          # Leaf node component
+│   └── Modal.jsx         # Modal wrapper
+├── utils/
+│   └── helpers.js        # Utility functions
+└── App.jsx              # Main application
+```
+
+## License
+
+MIT
