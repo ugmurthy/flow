@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import { Handle, Position, useNodeId, useReactFlow ,useEdges} from '@xyflow/react';
 import { formatFormDataForDisplay, combineObjectValues, formatArrayOfObjects } from '../utils/helpers';
 
@@ -30,6 +30,12 @@ function Process({ data }) {
     
     return formData;
   }
+
+  // Update current node's formData when connected data changes
+  useEffect(() => {
+    const combinedData = combineObjectValues(connectedFormData());
+    updateNodeData(currentNodeId, { formData: combinedData });
+  }, [edges, currentNodeId, updateNodeData]);
   
 
   return (
@@ -47,8 +53,8 @@ function Process({ data }) {
       <pre className="text-green-700 text-xs font-thin bg-gray-50 p-2 rounded border">
                   {formatArrayOfObjects(connectedFormData())}
       </pre>
-      <pre className="text-green-700 text-xs font-thin bg-gray-50 p-2 rounded border">
-                  {formatFormDataForDisplay(combineObjectValues(connectedFormData()))}
+      <pre className="text-blue-700 text-xs font-thin bg-gray-50 p-2 rounded border">
+                  {formatFormDataForDisplay(data.formData)}
       </pre>
      <Handle
              type="target"
