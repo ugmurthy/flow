@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Background, Controls, Panel, BackgroundVariant } from '@xyflow/react';
+import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Background, Controls, Panel, BackgroundVariant, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 //import './tailwind-config.js';
 import './index.css'
@@ -8,12 +8,11 @@ import Root from './components/Root'
 import Process from './components/Process.jsx'
 import Leaf from './components/Leaf.jsx';
 import FormNode from './components/FormNode.jsx';
+import FetchNode from './components/FetchNode.jsx';
+import MarkdownNode from './components/MarkdownNode.jsx';
+
 const initialNodes = [
-  { id: 't1', position: { x: 0, y: 0 }, data: { label: 'Node 1' },type: 'textUpdater' },
-  { id: 'n1', position: { x: -100, y: 50 }, data: { label:"Root",function:"Consolidate",  emoji: '😎'  },type:'rootNode',} ,
-  { id: 'n2', position: { x: -100, y: 125 }, data: { label:"Process",function:"Process",  emoji: '⚙️'  },type:'processNode',} ,
-  { id: 'n3', position: { x: 100, y: 200 }, data: { label:"Leaf",function:"Input",  emoji: '🍁'  },type:'leafNode',} ,
-  { id: 'n4', position: { x: -100, y: 200 }, data: { label:"Leaf",function:"Input",  emoji: '🍁'  },type:'leafNode',} ,
+
   {
     id: 'f1',
     position: { x: 200, y: 50 },
@@ -76,32 +75,94 @@ const initialNodes = [
       function: "Input",
       emoji: '🖋️',
       formFields: [
+        {name:'max_tokens',type:'hidden'},
         { name: 'prompt', type: 'textarea', label: 'Prompt' },
         { name: 'model', type: 'select', label: 'Model', options: [
           { value: 'llama3.2', label: 'llama3.2' },
           { value: 'gemma3:27b', label: 'gemma3:27b' },
           { value: 'gpt-oss', label: 'gpt-oss' }
-        ]},
-      
+        ]}
       ],
       formData: {
         prompt: "",
-        model: "gpt-oss"
+        model: "gpt-oss",
+        max_tokens:4096
       }
     },
     type: 'formNode'
   },
+  { id: 'llm-1', position: { x: 100, y: 125 },
+  data: {
+    label:"Ollama",function:"Inference",  emoji: '⚙️' ,formData:{method:"POST",stream:false,url:"http://localhost:11434/api/chat",options:{},} },
+    type:'processNode',} ,
+  {
+    id: 'fetch-1',
+    position: { x: 400, y: 200 },
+    data: {
+      label: "API Fetch",
+      function: "HTTP Request",
+      emoji: '🌐',
+      formData: {
+        url: 'https://jsonplaceholder.typicode.com/posts/1',
+        method: 'GET',
+        result: null,
+        error: null,
+        status: 'idle'
+      }
+    },
+    type: 'fetchNode'
+  },
+  {
+    id: 'md-1',
+    position: { x: 600, y: 50 },
+    data: {
+      label: "Markdown Display",
+      function: "Renderer",
+      emoji: '📝',
+      content: `# Markdown Renderer
+
+## Code Example
+\`\`\`javascript
+function greet(name) {
+  return \`Hello, \${name}!\`;
+}
+\`\`\`
+
+## Features
+- **Bold** and *italic* text
+- Lists and links
+- Code blocks with syntax highlighting
+- Tables and more!
+
+## Table Example
+| Feature | Status |
+|---------|--------|
+| Headers | ✅ |
+| Lists | ✅ |
+| Code | ✅ |
+| Tables | ✅ |
+
+> This content can be dynamically updated by connecting other nodes!`,
+      styleConfig: {
+        width: 'auto',
+        textColor: '#374151',
+        fontSize: '14px'
+      }
+    },
+    type: 'markdownNode'
+  },
 ];
 const initialEdges = [
-  { id: 'n2-n3', source: 'n3', target: 'n2',label:"generates tweets", animated: true },
-  { id: 'n2-n4', source: 'n4', target: 'n2',label:"summarise"  }
+  { id: 'n2-n3', source: 'n3', target: 'n1',label:"generates tweets", animated: true },
+  { id: 'n2-n4', source: 'n4', target: 'n1',label:"summarise"  }
   
 ];
  
 export default function App() {
   const [nodes, setNodes] = useState(initialNodes);
   const [edges, setEdges] = useState(initialEdges);
- 
+  
+
   const onNodesChange = useCallback(
     (changes) => {
       console.log("Node Changes ",changes)
@@ -129,6 +190,8 @@ const nodeTypes = {
   processNode:Process,
   leafNode:Leaf,
   formNode: FormNode,
+  fetchNode: FetchNode,
+  markdownNode: MarkdownNode,
 };
 
   return (
@@ -144,9 +207,18 @@ const nodeTypes = {
       >
         <Panel position="top-center" className='text-2xl text-blue-500'>JobRunner Workflow</Panel>
         <Panel position="bottom-right">V0.0.1</Panel>
+        <Panel position="top-right" className="border-2  border-gray-600 p-2 rounded-lg bg-white w-64">
+          <div className='flex flex-col space-y-2 text-xs text-blue-900 font-thin'>
+            <div>Input Nodes</div>
+            <div>Process Nodes</div>
+            <div>Output Nodes</div>
+          </div>
+
+        </Panel>
         <Background variant={BackgroundVariant.Lines} gap={10} color="#f1f1f1" id="1"/>
         <Background variant={BackgroundVariant.Lines} gap={100} color="#ccc" id="2"/>
         <Controls />
+
       </ReactFlow>
       
     </div>

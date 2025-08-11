@@ -1,5 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import Cancell from '../icons/Cancell'
+import Save from '../icons/Save'
+import Upload from '../icons/Upload'
+
 
 function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel }) {
   const { register, handleSubmit, watch, control, formState: { errors } } = useForm({
@@ -260,10 +264,8 @@ function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel }) {
                           : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
                       } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors[name] ? 'border-red-500' : ''}`}
                     >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
-                      {fieldFiles.length > 0 ? `${fieldFiles.length} file(s) selected` : 'Choose Files'}
+                      <Upload/>
+                      {fieldFiles.length > 0 ? `${"  "+fieldFiles.length} file(s) selected` : '  Choose Files'}
                     </button>
                     
                     {fieldFiles.length > 0 && (
@@ -350,23 +352,17 @@ function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel }) {
           <button
             type="button"
             onClick={onCancel}
-            className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-gray-100 nodrag"
+            className="p-2 text-red-400 hover:text-red-600 transition-colors rounded hover:bg-gray-100 nodrag"
             title="Cancel"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6l12 12M6 18L18 6" />
-            </svg>
+            <Cancell/>
           </button>
           <button
             type="submit"
             className="p-2 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-gray-100 nodrag"
             title="Save Changes"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 21v-8H7v8" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v5h8" />
-            </svg>
+            <Save/>
           </button>
         </div>
       </form>
@@ -375,3 +371,18 @@ function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel }) {
 }
 
 export default DynamicForm;
+
+
+/* Cancell
+<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6l12 12M6 18L18 6" />
+            </svg>
+
+*/
+
+/* Upload
+<svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+
+*/
