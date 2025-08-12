@@ -208,7 +208,10 @@ function FetchNode({ data }) {
   };
 
   return (
-    <div className={`w-3/5 px-4 py-2 shadow-md rounded-md border-2 overflow-clip ${getStatusColor()}`}>
+
+    <div className={` w-min-24 px-4 py-2 shadow-md rounded-md border-2 overflow-clip ${getStatusColor()}`}>
+    <details>
+    <summary>
       <div className="flex">
         <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100">
           {data.emoji}
@@ -232,7 +235,7 @@ function FetchNode({ data }) {
              fetchStatus === 'success' ? 'Success' :
              'Error'}
           </div>
-          {fetchStatus === 'error' && (
+          {fetchStatus !== 'idle' && (
             <button
               onClick={resetToInitialState}
               className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
@@ -243,7 +246,9 @@ function FetchNode({ data }) {
           )}
         </div>
       )}
+    </summary>
 
+    
       {/* Connected data display */}
       <pre className="text-green-700 text-xs font-thin bg-gray-50 p-2 rounded border mt-2">
         {formatArrayOfObjects(connectedFormData())}
@@ -259,17 +264,18 @@ function FetchNode({ data }) {
         <div className="text-blue-700 text-xs font-thin bg-gray-50 p-2 rounded border mt-1">
         {formatFormDataForDisplay(data.formData)}
       </div>
+     </details>
 
       <Handle
         type="target"
-        position={Position.Bottom}
-        className="w-4 h-4 !bg-teal-200 text-xs font-thin text-center"
-      >^</Handle>
+        position={Position.Left}
+        className='!w-3 !h-3 !bg-black !rounded-full'
+      ></Handle>
       <Handle
         type="source"
-        position={Position.Top}
-        className="w-4 h-4 !bg-blue-200 text-xs font-thin text-center"
-      >v</Handle>
+        position={Position.Right}
+        className='!w-3 !h-3 !bg-blue-500 !rounded-full'
+      ></Handle>
     </div>
   );
 }

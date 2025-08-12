@@ -15,6 +15,7 @@
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.62.0",
     "react-markdown": "^10.1.0",
+    "react-modal": "^3.16.3",
     "react-syntax-highlighter": "^15.6.1",
     "remark-gfm": "^4.0.1"
   },

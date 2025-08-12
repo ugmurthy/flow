@@ -142,16 +142,12 @@ function FormNode({ data }) {
           </pre>
         </div>
         </details>
-        <Handle
-          type="target"
-          position={Position.Bottom}
-          className="w-4 h-4 !bg-teal-200 text-xs font-thin text-center"
-        >^</Handle>
+       
         <Handle
           type="source"
-          position={Position.Top}
-          className="w-4 h-4 !bg-blue-200 text-xs font-thin text-center"
-        >v</Handle>
+          position={Position.Right}
+          className="!w-3 !h-3 !bg-blue-500 !rounded-full"
+        ></Handle>
       </div>
 
       {/* Modal with form */}
