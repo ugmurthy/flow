@@ -100,7 +100,9 @@ function FormNode({ data }) {
   return (
     <>
       <div className="px-4 py-2 shadow-md rounded-md border-2 border-stone-400 bg-white">
-        <div className="flex items-start justify-between">
+        <details>
+          <summary> 
+          <div className="flex items-start justify-between">
           <div className="flex">
             <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100">
               {data.emoji}
@@ -131,7 +133,7 @@ function FormNode({ data }) {
           </button>
           </div>
         </div>
-
+        </summary>
         {/* Form data display */}
         <div className="mt-3">
           <div className="text-xs font-medium text-gray-600 mb-1">Form Data:</div>
@@ -139,12 +141,7 @@ function FormNode({ data }) {
             {formatFormDataForDisplay(data.formData)}
           </pre>
         </div>
-
-        {/* Debug info (similar to Leaf component) 
-        <pre className='text-xs font-thin text-blue-300 mt-2'>
-          {nodeId}: {JSON.stringify(data.formData, null, 2)}
-        </pre>*/}
-
+        </details>
         <Handle
           type="target"
           position={Position.Bottom}
