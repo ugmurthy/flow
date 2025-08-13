@@ -3,13 +3,13 @@ import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Background, Con
 import '@xyflow/react/dist/style.css';
 //import './tailwind-config.js';
 import './index.css'
-import  TextUpdateNode  from './components/TextUpdateNode';
-import Root from './components/Root'
+
 import Process from './components/Process.jsx'
 import Leaf from './components/Leaf.jsx';
 import FormNode from './components/FormNode.jsx';
 import FetchNode from './components/FetchNode.jsx';
 import MarkdownNode from './components/MarkdownNode.jsx';
+import TemplateFormNode from './components/templateFormNode.jsx';
 import { ModalProvider } from './contexts/ModalContext.jsx';
 
 const initialNodes = [
@@ -90,7 +90,7 @@ const initialNodes = [
         max_tokens:4096
       }
     },
-    type: 'formNode'
+    type: 'templateFormNode'
   },
   { id: 'llm-1', position: { x: 100, y: 125 },
   data: {
@@ -152,6 +152,34 @@ function greet(name) {
     },
     type: 'markdownNode'
   },
+  {
+    id: 'template-1',
+    position: { x: 800, y: 50 },
+    data: {
+      label: "Template Form",
+      function: "Enhanced Form Node",
+      emoji: '🎯',
+      formFields: [
+        { name: 'task_name', type: 'text', label: 'Task Name', required: true },
+        { name: 'priority', type: 'select', label: 'Priority', options: [
+          { value: 'low', label: 'Low' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'high', label: 'High' },
+          { value: 'urgent', label: 'Urgent' }
+        ]},
+        { name: 'due_date', type: 'datetime-local', label: 'Due Date' },
+        { name: 'completion', type: 'range', label: 'Completion %', min: 0, max: 100, step: 5 },
+        { name: 'notes', type: 'textarea', label: 'Notes' },
+        { name: 'active', type: 'checkbox', label: 'Active Task' }
+      ],
+      formData: {
+        priority: 'medium',
+        completion: 0,
+        active: true
+      }
+    },
+    type: 'templateFormNode'
+  },
 ];
 const initialEdges = [
   { id: 'n2-n3', source: 'n3', target: 'n1',label:"generates tweets", animated: true },
@@ -186,13 +214,13 @@ export default function App() {
   );
  
 const nodeTypes = {
-  textUpdater: TextUpdateNode,
-  rootNode: Root,
+
   processNode:Process,
   leafNode:Leaf,
   formNode: FormNode,
   fetchNode: FetchNode,
   markdownNode: MarkdownNode,
+  templateFormNode: TemplateFormNode,
 };
 
   return (

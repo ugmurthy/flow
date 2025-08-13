@@ -88,7 +88,7 @@ function MarkdownNode({ data }) {
 
   return (
     <>
-      <div className="px-4 py-2 shadow-md rounded-md border-2 border-stone-400 bg-white min-w-[300px] max-w-[600px]">
+      <div className="px-4 py-2 shadow-md rounded-md border-2 border-stone-400 bg-white min-w-[100px] max-w-[600px]">
         <div className="flex items-start justify-between mb-3">
           <div className="flex">
             <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100">
@@ -115,19 +115,7 @@ function MarkdownNode({ data }) {
           </div>
         </div>
 
-        {/* Markdown content display */}
-        <div
-          className="border border-gray-200 rounded-lg bg-gray-50 h-96 overflow-y-auto"
-
-        >
-          <div className="h-full">
-            <MarkdownRenderer
-              content={currentContent}
-              className="!p-2 h-full font-thin"
-            />
-          </div>
-        </div>
-
+        
         <Handle
           type="target"
           position={Position.Bottom}
