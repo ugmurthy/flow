@@ -3,7 +3,7 @@ import { Handle, Position, useNodeId, useReactFlow, useEdges } from '@xyflow/rea
 import MarkdownRenderer from './MarkdownRenderer';
 import DownloadFile from './DownloadFile';
 import { combineObjectValues } from '../utils/helpers';
-
+import ViewButton from '../components/ViewButton'
 
 function MarkdownNode({ data }) {
   const { updateNodeData, getNodes } = useReactFlow();
@@ -102,6 +102,7 @@ function MarkdownNode({ data }) {
           </div>
           
           <div className="flex gap-1">
+             <ViewButton data={currentContent} title="Output" className='w-96' />
             {/* Download button */}
             <DownloadFile
               content={currentContent}
@@ -123,7 +124,6 @@ function MarkdownNode({ data }) {
             <MarkdownRenderer
               content={currentContent}
               className="!p-2 h-full font-thin"
-              
             />
           </div>
         </div>

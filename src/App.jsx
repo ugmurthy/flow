@@ -10,6 +10,7 @@ import Leaf from './components/Leaf.jsx';
 import FormNode from './components/FormNode.jsx';
 import FetchNode from './components/FetchNode.jsx';
 import MarkdownNode from './components/MarkdownNode.jsx';
+import { ModalProvider } from './contexts/ModalContext.jsx';
 
 const initialNodes = [
 
@@ -195,32 +196,34 @@ const nodeTypes = {
 };
 
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        fitView
-        nodeTypes={nodeTypes}
-      >
-        <Panel position="top-center" className='text-2xl text-blue-500'>JobRunner Workflow</Panel>
-        <Panel position="bottom-right">V0.0.1</Panel>
-        <Panel position="top-right" className="border-2  border-gray-600 p-2 rounded-lg bg-white w-64">
-          <div className='flex flex-col space-y-2 text-xs text-blue-900 font-thin'>
-            <div>Input Nodes</div>
-            <div>Process Nodes</div>
-            <div>Output Nodes</div>
-          </div>
+    <ModalProvider>
+      <div style={{ width: '100vw', height: '100vh' }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          fitView
+          nodeTypes={nodeTypes}
+        >
+          <Panel position="top-center" className='text-2xl text-blue-500'>JobRunner Workflow</Panel>
+          <Panel position="bottom-right">V0.0.1</Panel>
+          <Panel position="top-right" className="border-2  border-gray-600 p-2 rounded-lg bg-white w-64">
+            <div className='flex flex-col space-y-2 text-xs text-blue-900 font-thin'>
+              <div>Input Nodes</div>
+              <div>Process Nodes</div>
+              <div>Output Nodes</div>
+            </div>
 
-        </Panel>
-        <Background variant={BackgroundVariant.Lines} gap={10} color="#f1f1f1" id="1"/>
-        <Background variant={BackgroundVariant.Lines} gap={100} color="#ccc" id="2"/>
-        <Controls />
+          </Panel>
+          <Background variant={BackgroundVariant.Lines} gap={10} color="#f1f1f1" id="1"/>
+          <Background variant={BackgroundVariant.Lines} gap={100} color="#ccc" id="2"/>
+          <Controls />
 
-      </ReactFlow>
-      
-    </div>
+        </ReactFlow>
+        
+      </div>
+    </ModalProvider>
   );
 }

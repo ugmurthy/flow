@@ -64,7 +64,7 @@ function ViewDataModal({ isOpen, onClose, data, title = "Node Data" }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="max-w-4xl w-full">
+      <div className="max-w-6xl w-full">
         <div className="mb-4">
           <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
         </div>
@@ -72,7 +72,7 @@ function ViewDataModal({ isOpen, onClose, data, title = "Node Data" }) {
         <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
           <MarkdownRenderer
             content={markdownContent}
-            width="100%"
+            width="800px"
             textColor="#374151"
             fontSize="14px"
           />

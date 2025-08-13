@@ -1,11 +1,10 @@
 import React, { memo, useCallback, useState, useEffect, useRef } from 'react';
 import { Handle, Position, useReactFlow, useNodeId, useViewport, useEdges, useNodeConnections } from '@xyflow/react';
-import Modal from './Modal';
-import DynamicForm from './DynamicForm';
 import { formatFormDataForDisplay } from '../utils/helpers';
 import Edit from '../icons/Edit';
 import Reset from '../icons/Reset';
 import ViewButton from '../components/ViewButton';
+import { useModal, MODAL_TYPES } from '../contexts/ModalContext';
 
 
 // Component to show connection count
@@ -22,7 +21,7 @@ function Connections() {
 }
 
 function FormNode({ data }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { openModal } = useModal();
   const { updateNodeData, getZoom } = useReactFlow();
   const nodeId = useNodeId();
   const edges = useEdges();
@@ -30,28 +29,22 @@ function FormNode({ data }) {
   const previousConnectionCountRef = useRef(0);
   //const {x,y,zoom} = useViewport()
   //console.log("FormNode x,y,zoom ",x,y,zoom)
+  
   const handleOpenModal = useCallback(() => {
-    setIsModalOpen(true);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
-    setIsModalOpen(false);
-  }, []);
-
-  const handleFormSubmit = useCallback((formData) => {
-    console.log("Form submitted:", nodeId, formData);
-    if (nodeId) {
-      updateNodeData(nodeId, { 
-        ...data,
-        formData: formData 
-      });
-    }
-    setIsModalOpen(false);
-  }, [updateNodeData, nodeId, data]);
-
-  const handleFormCancel = useCallback(() => {
-    setIsModalOpen(false);
-  }, []);
+    openModal(MODAL_TYPES.FORM_EDIT, {
+      formFields: data.formFields || [],
+      defaultValues: data.formData || {},
+      onSubmit: (formData) => {
+        console.log("Form submitted:", nodeId, formData);
+        if (nodeId) {
+          updateNodeData(nodeId, {
+            ...data,
+            formData: formData
+          });
+        }
+      }
+    });
+  }, [openModal, data, nodeId, updateNodeData]);
 
   // Reset function to clear form data
   const resetFormData = useCallback(() => {
@@ -116,7 +109,7 @@ function FormNode({ data }) {
           
           {/* Edit and Reset buttons */}
           <div className='flex'>
-          <ViewButton data={data} title="Node Data" />
+          <ViewButton data={"```json\n"+JSON.stringify(data,null,2)+"```"} title="Node Data" />
           <button
             onClick={resetFormData}
             className="ml-2 p-1 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-gray-100"
@@ -150,15 +143,6 @@ function FormNode({ data }) {
         ></Handle>
       </div>
 
-      {/* Modal with form */}
-      <Modal isOpen={isModalOpen} onClose={handleCloseModal}>
-        <DynamicForm
-          formFields={data.formFields || []}
-          defaultValues={data.formData || {}}
-          onSubmit={handleFormSubmit}
-          onCancel={handleFormCancel}
-        />
-      </Modal>
     </>
   );
 }
