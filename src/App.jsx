@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Background, Controls, Panel, BackgroundVariant, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 //import './tailwind-config.js';
@@ -10,7 +10,12 @@ import FormNode from './components/FormNode.jsx';
 import FetchNode from './components/FetchNode.jsx';
 import MarkdownNode from './components/MarkdownNode.jsx';
 import TemplateFormNode from './components/templateFormNode.jsx';
+import WorkflowFAB from './components/WorkflowFAB.jsx';
+import SaveWorkflowModal from './components/SaveWorkflowModal.jsx';
+import LoadWorkflowModal from './components/LoadWorkflowModal.jsx';
+import ConfirmationDialog from './components/ConfirmationDialog.jsx';
 import { ModalProvider } from './contexts/ModalContext.jsx';
+import { WorkflowProvider, useWorkflow } from './contexts/WorkflowContext.jsx';
 
 const initialNodes = [
 
@@ -182,75 +187,260 @@ function greet(name) {
   },
 ];
 const initialEdges = [
-  { id: 'n2-n3', source: 'n3', target: 'n1',label:"generates tweets", animated: true },
-  { id: 'n2-n4', source: 'n4', target: 'n1',label:"summarise"  }
   
 ];
  
-export default function App() {
-  const [nodes, setNodes] = useState(initialNodes);
-  const [edges, setEdges] = useState(initialEdges);
+// Workflow Management Component (inside ReactFlow)
+function AppContent() {
+  const { getNodes, getEdges } = useReactFlow();
   
+  // Workflow context
+  const {
+    workflows,
+    isLoading: workflowLoading,
+    error: workflowError,
+    saveWorkflow,
+    loadWorkflow,
+    deleteWorkflow,
+    checkWorkflowNameExists,
+    getCurrentWorkflowValidity,
+    getCurrentCanvasStats,
+    getWorkflowStats,
+    markUnsavedChanges
+  } = useWorkflow();
 
-  const onNodesChange = useCallback(
-    (changes) => {
-      console.log("Node Changes ",changes)
-      setNodes((nodesSnapshot) => applyNodeChanges(changes, nodesSnapshot))
-    },[],);
-  const onEdgesChange = useCallback(
-    (changes) => {
-      console.log("Edge Changes ",changes)
-      setEdges((edgesSnapshot) => applyEdgeChanges(changes, edgesSnapshot))
-    },
-    [],
+  // Modal states
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogData, setConfirmDialogData] = useState(null);
+  
+  // Real-time workflow validity state
+  const [currentWorkflowValidity, setCurrentWorkflowValidity] = useState({ hasWorkflow: false });
+
+  // Update workflow validity when React Flow state changes
+  const updateWorkflowValidity = useCallback(() => {
+    const validity = getCurrentWorkflowValidity();
+    setCurrentWorkflowValidity(validity);
+    
+    // Minimal debug logging
+    console.log('FAB Update - Workflow Valid:', validity.hasWorkflow,
+      `(${validity.nodeCount || 0} connected nodes, ${validity.edgeCount || 0} edges)`);
+  }, [getCurrentWorkflowValidity]);
+
+  // Listen to React Flow state changes
+  useEffect(() => {
+    updateWorkflowValidity();
+  }, [updateWorkflowValidity]);
+
+  // Track changes for unsaved changes detection and workflow validity updates
+  const onNodesChange = useCallback((changes) => {
+    markUnsavedChanges();
+    // Trigger workflow validity update after state change
+    setTimeout(updateWorkflowValidity, 0);
+  }, [markUnsavedChanges, updateWorkflowValidity]);
+
+  const onEdgesChange = useCallback((changes) => {
+    markUnsavedChanges();
+    // Trigger workflow validity update after state change
+    setTimeout(updateWorkflowValidity, 0);
+  }, [markUnsavedChanges, updateWorkflowValidity]);
+
+  const onConnect = useCallback((connection) => {
+    markUnsavedChanges();
+    // Trigger workflow validity update after connection
+    setTimeout(updateWorkflowValidity, 0);
+  }, [markUnsavedChanges, updateWorkflowValidity]);
+
+  // Handle Save Workflow
+  const handleSaveWorkflow = useCallback(async ({ name, description }) => {
+    try {
+      const result = await saveWorkflow({ name, description });
+      console.log('Workflow saved successfully:', result.workflowId);
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+      throw error;
+    }
+  }, [saveWorkflow]);
+
+  // Handle Load Workflow
+  const handleLoadWorkflow = useCallback((workflow) => {
+    const currentStats = getCurrentCanvasStats();
+    
+    if (currentStats.nodeCount > 0) {
+      // Show confirmation dialog
+      setConfirmDialogData({
+        type: 'load',
+        workflow,
+        currentWorkflowStats: currentStats
+      });
+      setShowConfirmDialog(true);
+    } else {
+      // No current workflow, load directly
+      loadWorkflow(workflow, 'replace');
+    }
+  }, [getCurrentCanvasStats, loadWorkflow]);
+
+  // Handle Load Confirmation
+  const handleLoadConfirmation = useCallback(async (action) => {
+    if (confirmDialogData?.workflow) {
+      try {
+        await loadWorkflow(confirmDialogData.workflow, action);
+        console.log(`Workflow loaded with action: ${action}`);
+      } catch (error) {
+        console.error('Failed to load workflow:', error);
+      }
+    }
+    setConfirmDialogData(null);
+  }, [confirmDialogData, loadWorkflow]);
+
+  // Handle Delete Workflow
+  const handleDeleteWorkflow = useCallback(async (workflowId) => {
+    try {
+      await deleteWorkflow(workflowId);
+      console.log('Workflow deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete workflow:', error);
+      throw error;
+    }
+  }, [deleteWorkflow]);
+
+  // Use real-time workflow validity state for FAB
+
+  // Listen to React Flow events from main component
+  useEffect(() => {
+    const handleNodesChanged = () => updateWorkflowValidity();
+    const handleEdgesChanged = () => updateWorkflowValidity();
+    const handleConnected = () => updateWorkflowValidity();
+
+    const element = document.querySelector('[data-workflow-content]');
+    if (element) {
+      element.addEventListener('nodesChanged', handleNodesChanged);
+      element.addEventListener('edgesChanged', handleEdgesChanged);
+      element.addEventListener('connected', handleConnected);
+
+      return () => {
+        element.removeEventListener('nodesChanged', handleNodesChanged);
+        element.removeEventListener('edgesChanged', handleEdgesChanged);
+        element.removeEventListener('connected', handleConnected);
+      };
+    }
+  }, [updateWorkflowValidity]);
+
+  return (
+    <div data-workflow-content>
+      {/* Workflow FAB */}
+      <WorkflowFAB
+        onSave={() => setShowSaveModal(true)}
+        onLoad={() => setShowLoadModal(true)}
+        hasWorkflow={currentWorkflowValidity.hasWorkflow}
+        disabled={workflowLoading}
+      />
+
+      {/* Save Workflow Modal */}
+      <SaveWorkflowModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSaveWorkflow}
+        workflowStats={currentWorkflowValidity.hasWorkflow ? {
+          nodeCount: currentWorkflowValidity.nodeCount,
+          edgeCount: currentWorkflowValidity.edgeCount,
+          nodeTypes: [...new Set(getNodes().filter(n =>
+            getEdges().some(e => e.source === n.id || e.target === n.id)
+          ).map(n => n.type))]
+        } : null}
+        checkNameExists={checkWorkflowNameExists}
+      />
+
+      {/* Load Workflow Modal */}
+      <LoadWorkflowModal
+        isOpen={showLoadModal}
+        onClose={() => setShowLoadModal(false)}
+        onLoad={handleLoadWorkflow}
+        onDelete={handleDeleteWorkflow}
+        workflows={workflows}
+        isLoading={workflowLoading}
+        error={workflowError}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showConfirmDialog}
+        onClose={() => {
+          setShowConfirmDialog(false);
+          setConfirmDialogData(null);
+        }}
+        onConfirm={handleLoadConfirmation}
+        workflow={confirmDialogData?.workflow}
+        currentWorkflowStats={confirmDialogData?.currentWorkflowStats}
+        type={confirmDialogData?.type || 'load'}
+      />
+    </div>
   );
-  const onConnect = useCallback(
-    (params) => {
-      console.log("onConnect ",params)
-      setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot))
+}
 
-    },
-    [],
-  );
- 
-const nodeTypes = {
-
-  processNode:Process,
-  leafNode:Leaf,
-  formNode: FormNode,
-  fetchNode: FetchNode,
-  markdownNode: MarkdownNode,
-  templateFormNode: TemplateFormNode,
-};
-
+// Main App with Providers
+export default function App() {
   return (
     <ModalProvider>
       <div style={{ width: '100vw', height: '100vh' }}>
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          defaultNodes={initialNodes}
+          defaultEdges={initialEdges}
+          onNodesChange={(changes) => {
+            // Let React Flow handle the changes first, then trigger our handlers
+            setTimeout(() => {
+              const appContent = document.querySelector('[data-workflow-content]');
+              if (appContent) {
+                appContent.dispatchEvent(new CustomEvent('nodesChanged', { detail: changes }));
+              }
+            }, 0);
+          }}
+          onEdgesChange={(changes) => {
+            // Let React Flow handle the changes first, then trigger our handlers
+            setTimeout(() => {
+              const appContent = document.querySelector('[data-workflow-content]');
+              if (appContent) {
+                appContent.dispatchEvent(new CustomEvent('edgesChanged', { detail: changes }));
+              }
+            }, 0);
+          }}
+          onConnect={(connection) => {
+            // Let React Flow handle the connection first, then trigger our handlers
+            setTimeout(() => {
+              const appContent = document.querySelector('[data-workflow-content]');
+              if (appContent) {
+                appContent.dispatchEvent(new CustomEvent('connected', { detail: connection }));
+              }
+            }, 0);
+          }}
           fitView
-          nodeTypes={nodeTypes}
+          nodeTypes={{
+            processNode: Process,
+            leafNode: Leaf,
+            formNode: FormNode,
+            fetchNode: FetchNode,
+            markdownNode: MarkdownNode,
+            templateFormNode: TemplateFormNode,
+          }}
         >
           <Panel position="top-center" className='text-2xl text-blue-500'>JobRunner Workflow</Panel>
-          <Panel position="bottom-right">V0.0.1</Panel>
-          <Panel position="top-right" className="border-2  border-gray-600 p-2 rounded-lg bg-white w-64">
+          <Panel position="bottom-right">V0.1.0</Panel>
+          <Panel position="top-right" className="border-2 border-gray-600 p-2 rounded-lg bg-white w-64">
             <div className='flex flex-col space-y-2 text-xs text-blue-900 font-thin'>
               <div>Input Nodes</div>
               <div>Process Nodes</div>
               <div>Output Nodes</div>
             </div>
-
           </Panel>
           <Background variant={BackgroundVariant.Lines} gap={10} color="#f1f1f1" id="1"/>
           <Background variant={BackgroundVariant.Lines} gap={100} color="#ccc" id="2"/>
           <Controls />
-
+          
+          <WorkflowProvider>
+            <AppContent />
+          </WorkflowProvider>
         </ReactFlow>
-        
       </div>
     </ModalProvider>
   );
