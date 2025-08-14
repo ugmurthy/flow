@@ -2,19 +2,8 @@ import React, { memo, useEffect, useState, useRef, useCallback } from 'react';
 import { Handle, Position, useNodeId, useReactFlow, useEdges, useNodeConnections } from '@xyflow/react';
 import { formatFormDataForDisplay, combineObjectValues, formatArrayOfObjects } from '../utils/helpers';
 import Reset from '../icons/Reset';
-
-function Connections() {
-  const connections = useNodeConnections({
-    handleType: 'target',
-  });
- 
-  return (
-    <div className='text-xs font-thin text-blue-800'>
-      {connections.length ? connections.length : ""}
-    </div>
-  );
-}
-
+import ConnectionBadge from './ConnectionBadge';
+import ViewButton from './ViewButton';
 function FetchNode({ data }) {
   const { updateNodeData, getNodes } = useReactFlow();
   const currentNodeId = useNodeId();
@@ -206,35 +195,19 @@ function FetchNode({ data }) {
       default: return 'border-stone-400 bg-white';
     }
   };
-
+//<div className={` w-min-24 px-4 py-2 shadow-md rounded-md border-2 overflow-clip ${getStatusColor()}`}>
   return (
 
-    <div className={` w-min-24 px-4 py-2 shadow-md rounded-md border-2 overflow-clip ${getStatusColor()}`}>
-    <details>
-    <summary>
-      <div className="flex">
-        <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100">
-          {data.emoji}
-        </div>
-        <div className="ml-2">
-          <div className="text-lg font-bold">{data.label}</div>
-          <div className="text-gray-500">{data.function}</div>
-          <Connections />
-        </div>
-      </div>
-
-      {/* Status indicator with reset button for error state */}
-      {fetchStatus !== 'idle' && (
-        <div className="mt-2 flex items-center justify-between">
-          <div className={`text-xs px-2 py-1 rounded ${
-            fetchStatus === 'loading' ? 'bg-yellow-100 text-yellow-800' :
-            fetchStatus === 'success' ? 'bg-green-100 text-green-800' :
-            'bg-red-100 text-red-800'
-          }`}>
-            {fetchStatus === 'loading' ? 'Auto-fetching...' :
-             fetchStatus === 'success' ? 'Success' :
-             'Error'}
-          </div>
+   
+   <div className={` group relative `}>
+{/* Hover Buttons - Positioned above the node */}
+      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
+        <div className="flex items-center gap-1 bg-gray-200 rounded-lg shadow-lg border border-gray-200 p-1">
+          <ViewButton
+            data={"```json\n"+JSON.stringify(data,null,2)+"```"}
+            title="Node Data"
+            className="!p-1.5 hover:bg-gray-50"
+          />
           {fetchStatus !== 'idle' && (
             <button
               onClick={resetToInitialState}
@@ -245,37 +218,43 @@ function FetchNode({ data }) {
             </button>
           )}
         </div>
-      )}
-    </summary>
-
-    
-      {/* Connected data display */}
-      <pre className="text-green-700 text-xs font-thin bg-gray-50 p-2 rounded border mt-2">
-        {formatArrayOfObjects(connectedFormData())}
-      </pre>
-
-      {/* Response/Error display */}
-      <pre className="text-red-700 text-xs font-thin bg-gray-50 p-2 rounded border mt-1">
-        {data.formData?.error ? 
-          `Error: ${data.formData.error}` : ""
-          
-        } 
-      </pre>
-        <div className="text-blue-700 text-xs font-thin bg-gray-50 p-2 rounded border mt-1">
-        {formatFormDataForDisplay(data.formData)}
       </div>
-     </details>
+
+      {/* Connection Badge */}
+      <ConnectionBadge />
+
+          {/* Main Node Container */}
+      <div className={` px-4 py-3 shadow-md rounded-lg border-2  min-w-[200px] relative ${getStatusColor()}`}>
+      
+        {/* Node Content - Horizontal Layout */}
+            <div className="flex items-center gap-3">
+              {/* Icon Section */}
+              <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100 flex-shrink-0">
+                <span className="text-xl">{data.emoji}</span>
+              </div>
+              
+              {/* Content Section */}
+              <div className="flex-1 min-w-0">
+                <div className="text-lg font-bold text-gray-900 truncate">{data.label}</div>
+                <div className="text-sm text-gray-500 truncate">{data.function}</div>
+                <div className="text-sm  truncate">{fetchStatus}</div>
+              </div>
+            </div>
+
+     
+
 
       <Handle
         type="target"
         position={Position.Left}
-        className='!w-3 !h-3 !bg-black !rounded-full'
+        className='!w-3 !h-3 !bg-gray-400 !rounded-full'
       ></Handle>
       <Handle
         type="source"
         position={Position.Right}
         className='!w-3 !h-3 !bg-blue-500 !rounded-full'
       ></Handle>
+      </div>
     </div>
   );
 }

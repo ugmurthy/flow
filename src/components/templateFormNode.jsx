@@ -140,11 +140,7 @@ function TemplateFormNode({ data }) {
           position={Position.Right}
           className="!w-3 !h-3 !bg-blue-500 !rounded-full !border-2 !border-white"
         />
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!w-3 !h-3 !bg-gray-400 !rounded-full !border-2 !border-white"
-        />
+        
       </div>
     </div>
   );

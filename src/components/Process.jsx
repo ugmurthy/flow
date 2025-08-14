@@ -2,21 +2,21 @@ import React, { memo, useEffect, useState, useRef, useCallback } from 'react';
 import { Handle, Position, useNodeId, useReactFlow ,useEdges, useNodeConnections} from '@xyflow/react';
 import { formatFormDataForDisplay, combineObjectValues, formatArrayOfObjects } from '../utils/helpers';
 import ViewButton from '../components/ViewButton';
-
-// Component to show connection count as a badge
-function ConnectionBadge() {
-  const connections = useNodeConnections({
-    handleType: 'target',
-  });
+import ConnectionBadge from './ConnectionBadge';
+// // Component to show connection count as a badge
+// function ConnectionBadge() {
+//   const connections = useNodeConnections({
+//     handleType: 'target',
+//   });
  
-  if (!connections.length) return null;
+//   if (!connections.length) return null;
 
-  return (
-    <div className='absolute -top-2 -left-2 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10'>
-      {connections.length}
-    </div>
-  );
-}
+//   return (
+//     <div className='absolute -top-2 -left-2 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10'>
+//       {connections.length}
+//     </div>
+//   );
+// }
 
 function Process({ data }) {
   const { updateNodeData, getNodes } = useReactFlow();

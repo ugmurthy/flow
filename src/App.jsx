@@ -42,7 +42,7 @@ const initialNodes = [
         user_id: ''
       }
     },
-    type: 'formNode'
+    type: 'templateFormNode'
   },
   {
     id: 'f2',
@@ -66,7 +66,7 @@ const initialNodes = [
         privacy_consent: false
       }
     },
-    type: 'formNode'
+    type: 'templateFormNode'
   },
   {
     id: 'f3',
