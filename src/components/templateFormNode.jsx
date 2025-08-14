@@ -2,9 +2,13 @@ import React, { memo, useCallback, useState, useEffect, useRef } from 'react';
 import { Handle, Position, useReactFlow, useNodeId, useViewport, useEdges, useNodeConnections } from '@xyflow/react';
 import { formatFormDataForDisplay } from '../utils/helpers';
 import Edit from '../icons/Edit';
-import Reset from '../icons/Reset';
+
 import ViewButton from '../components/ViewButton';
+import DeleteButton from './DeleteButton';
+import ResetButton from './ResetButton'
 import { useModal, MODAL_TYPES } from '../contexts/ModalContext';
+import EditButton from './EditButton';
+import ButtonPanel from './ButtonPanel';
 
 // Component to show connection count as a badge
 function ConnectionBadge() {
@@ -91,29 +95,22 @@ function TemplateFormNode({ data }) {
   return (
     <div className="group relative">
       {/* Hover Buttons - Positioned above the node */}
-      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
-        <div className="flex items-center gap-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1">
-          <ViewButton 
-            data={"```json\n"+JSON.stringify(data,null,2)+"```"} 
+      <ButtonPanel>
+           <ViewButton
+            data={"```json\n"+JSON.stringify(data,null,2)+"```"}
             title="Node Data"
-            className="!p-1.5 hover:bg-gray-50"
+            className=" hover:bg-gray-100"
           />
-          <button
-            onClick={resetFormData}
-            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-gray-50"
-            title="Reset form data"
-          >
-            <Reset/>
-          </button>
-          <button
-            onClick={handleOpenModal}
-            className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-gray-50"
-            title="Edit form data"
-          >
-            <Edit/>
-          </button>
-        </div>
-      </div>
+          <DeleteButton
+            className=" hover:bg-red-50"
+            title="Delete Node"
+          />
+          <ResetButton onReset={resetFormData}/>
+          <EditButton onEdit={handleOpenModal}/>
+         
+      </ButtonPanel>
+     
+         
 
       {/* Connection Badge */}
       <ConnectionBadge />
@@ -147,3 +144,25 @@ function TemplateFormNode({ data }) {
 }
 
 export default memo(TemplateFormNode);
+
+
+
+/*
+<div className="absolute -top-10 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
+        <div className="flex items-center justify-center gap-1 bg-yellow-100 rounded-lg shadow-lg border border-gray-200 px-2 min-w-[200px]">
+          <ViewButton
+            data={"```json\n"+JSON.stringify(data,null,2)+"```"}
+            title="Node Data"
+            className=" hover:bg-gray-100"
+          />
+          <DeleteButton
+            className=" hover:bg-red-50"
+            title="Delete Node"
+          />
+          <ResetButton onReset={resetFormData}/>
+          <EditButton onEdit={handleOpenModal}/>
+          
+          
+        </div>
+      </div>
+*/

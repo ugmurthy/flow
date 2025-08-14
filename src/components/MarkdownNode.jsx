@@ -4,7 +4,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 import DownloadFile from './DownloadFile';
 import { combineObjectValues } from '../utils/helpers';
 import ViewButton from '../components/ViewButton'
-
+import ButtonPanel from './ButtonPanel';
 // Component to show connection count as a badge
 function ConnectionBadge() {
   const connections = useNodeConnections({
@@ -104,12 +104,11 @@ function MarkdownNode({ data }) {
   return (
     <div className="group relative">
       {/* Hover Buttons - Positioned above the node */}
-      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
-        <div className="flex items-center gap-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1">
+       <ButtonPanel>
           <ViewButton
             data={currentContent}
             title="Output"
-            className="!p-1.5 hover:bg-gray-50"
+            className=" hover:bg-gray-50"
           />
           <DownloadFile
             content={currentContent}
@@ -119,8 +118,7 @@ function MarkdownNode({ data }) {
             title="Download markdown content"
             className="p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-gray-50"
           />
-        </div>
-      </div>
+     </ButtonPanel>
 
       {/* Connection Badge */}
       <ConnectionBadge />
@@ -153,3 +151,25 @@ function MarkdownNode({ data }) {
 }
 
 export default memo(MarkdownNode);
+
+
+/*
+  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
+        <div className="flex items-center gap-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1">
+          <ViewButton
+            data={currentContent}
+            title="Output"
+            className="!p-1.5 hover:bg-gray-50"
+          />
+          <DownloadFile
+            content={currentContent}
+            filename={`markdown-${new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-')}.md`}
+            fileExtension="md"
+            mimeType="text/markdown"
+            title="Download markdown content"
+            className="p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-gray-50"
+          />
+        </div>
+      </div>
+
+*/

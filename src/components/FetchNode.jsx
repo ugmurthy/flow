@@ -4,6 +4,8 @@ import { formatFormDataForDisplay, combineObjectValues, formatArrayOfObjects } f
 import Reset from '../icons/Reset';
 import ConnectionBadge from './ConnectionBadge';
 import ViewButton from './ViewButton';
+import ButtonPanel from './ButtonPanel';
+import ResetButton from './ResetButton';
 function FetchNode({ data }) {
   const { updateNodeData, getNodes } = useReactFlow();
   const currentNodeId = useNodeId();
@@ -201,24 +203,16 @@ function FetchNode({ data }) {
    
    <div className={` group relative `}>
 {/* Hover Buttons - Positioned above the node */}
-      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
-        <div className="flex items-center gap-1 bg-gray-200 rounded-lg shadow-lg border border-gray-200 p-1">
+      <ButtonPanel>
           <ViewButton
             data={"```json\n"+JSON.stringify(data,null,2)+"```"}
             title="Node Data"
             className="!p-1.5 hover:bg-gray-50"
           />
           {fetchStatus !== 'idle' && (
-            <button
-              onClick={resetToInitialState}
-              className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
-              title="Reset to initial state"
-            >
-              <Reset />
-            </button>
+            <ResetButton onReset={resetToInitialState}/>
           )}
-        </div>
-      </div>
+       </ButtonPanel>
 
       {/* Connection Badge */}
       <ConnectionBadge />
@@ -260,3 +254,16 @@ function FetchNode({ data }) {
 }
 
 export default memo(FetchNode);
+
+
+/*
+{fetchStatus !== 'idle' && (
+            <button
+              onClick={resetToInitialState}
+              className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
+              title="Reset to initial state"
+            >
+              <Reset />
+            </button>
+          )}
+*/
