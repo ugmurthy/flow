@@ -7,6 +7,7 @@ import ViewButton from '../components/ViewButton';
 import DeleteButton from './DeleteButton';
 import ResetButton from './ResetButton'
 import { useModal, MODAL_TYPES } from '../contexts/ModalContext';
+import { useGlobal } from '../contexts/GlobalContext';
 import EditButton from './EditButton';
 import ButtonPanel from './ButtonPanel';
 
@@ -27,6 +28,7 @@ function ConnectionBadge() {
 
 function TemplateFormNode({ data }) {
   const { openModal } = useModal();
+  const { executeWorkflow } = useGlobal();
   const { updateNodeData, getZoom } = useReactFlow();
   const nodeId = useNodeId();
   const edges = useEdges();
@@ -127,7 +129,14 @@ function TemplateFormNode({ data }) {
           {/* Content Section */}
           <div className="flex-1 min-w-0">
             <div className="text-lg font-bold text-gray-900 truncate">{data.label}</div>
-            <div className="text-sm text-gray-500 truncate">{data.function}</div>
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-gray-500 truncate">{data.function}</div>
+              {/* Execution Status Indicator */}
+              <div
+                className={`w-3 h-3 rounded-full ${executeWorkflow ? 'bg-green-500' : 'bg-red-500'}`}
+                title={`Execution: ${executeWorkflow ? 'Enabled' : 'Disabled'}`}
+              />
+            </div>
           </div>
         </div>
 

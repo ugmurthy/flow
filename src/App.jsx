@@ -16,6 +16,7 @@ import LoadWorkflowModal from './components/LoadWorkflowModal.jsx';
 import ConfirmationDialog from './components/ConfirmationDialog.jsx';
 import { ModalProvider } from './contexts/ModalContext.jsx';
 import { WorkflowProvider, useWorkflow } from './contexts/WorkflowContext.jsx';
+import { GlobalProvider } from './contexts/GlobalContext.jsx';
 
 const initialNodes = [
 
@@ -192,7 +193,7 @@ const initialEdges = [
  
 // Workflow Management Component (inside ReactFlow)
 function AppContent() {
-  const { getNodes, getEdges } = useReactFlow();
+  const { getNodes, getEdges, getViewport } = useReactFlow();
   
   // Workflow context
   const {
@@ -305,6 +306,75 @@ function AppContent() {
     }
   }, [deleteWorkflow]);
 
+  // Handle Export Workflow
+  const handleExportWorkflow = useCallback(() => {
+    try {
+      const nodes = getNodes();
+      const edges = getEdges();
+      const viewport = getViewport();
+      
+      // Check if there's a valid workflow to export
+      const validity = getCurrentWorkflowValidity();
+      if (!validity.hasWorkflow) {
+        console.warn('No valid workflow to export');
+        return;
+      }
+
+      // Create a workflow object for export
+      const exportData = {
+        id: `export_${Date.now()}`,
+        name: `Exported Workflow ${new Date().toLocaleDateString()}`,
+        description: 'Exported from JobRunner Workflow',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: '1.0.0',
+        metadata: {
+          nodeCount: validity.nodeCount,
+          edgeCount: validity.edgeCount,
+          nodeTypes: [...new Set(nodes.filter(n =>
+            edges.some(e => e.source === n.id || e.target === n.id)
+          ).map(n => n.type))]
+        },
+        workflow: {
+          nodes: nodes.filter(n =>
+            edges.some(e => e.source === n.id || e.target === n.id)
+          ),
+          edges,
+          viewport
+        }
+      };
+
+      // Create and download the file
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `workflow_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log('Workflow exported successfully');
+    } catch (error) {
+      console.error('Failed to export workflow:', error);
+    }
+  }, [getNodes, getEdges, getViewport, getCurrentWorkflowValidity]);
+
+  // Handle Import Workflow
+  const handleImportWorkflow = useCallback(() => {
+    // This would typically import a workflow from file
+    console.log('Import workflow functionality to be implemented');
+  }, []);
+
+  // Handle Reset Workflow
+  const handleResetWorkflow = useCallback(() => {
+    // This would typically reset the current workflow
+    console.log('Reset workflow functionality to be implemented');
+  }, []);
+
   // Use real-time workflow validity state for FAB
 
   // Listen to React Flow events from main component
@@ -333,6 +403,9 @@ function AppContent() {
       <WorkflowFAB
         onSave={() => setShowSaveModal(true)}
         onLoad={() => setShowLoadModal(true)}
+        onExport={handleExportWorkflow}
+        onImport={handleImportWorkflow}
+        onReset={handleResetWorkflow}
         hasWorkflow={currentWorkflowValidity.hasWorkflow}
         disabled={workflowLoading}
       />
@@ -382,9 +455,10 @@ function AppContent() {
 // Main App with Providers
 export default function App() {
   return (
-    <ModalProvider>
-      <div style={{ width: '100vw', height: '100vh' }}>
-        <ReactFlow
+    <GlobalProvider>
+      <ModalProvider>
+        <div style={{ width: '100vw', height: '100vh' }}>
+          <ReactFlow
           defaultNodes={initialNodes}
           defaultEdges={initialEdges}
           onNodesChange={(changes) => {
@@ -443,5 +517,6 @@ export default function App() {
         </ReactFlow>
       </div>
     </ModalProvider>
+  </GlobalProvider>
   );
 }
