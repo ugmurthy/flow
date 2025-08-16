@@ -54,9 +54,9 @@ function TemplateFormNode({ data }) {
             emoji: data.emoji || '📝',
             description: 'Template form node for collecting user input'
           },
+          formFields: data.formFields || [],
           input: {
             config: {
-              formFields: data.formFields || [],
               validation: {},
               allowExternalData: true
             }
