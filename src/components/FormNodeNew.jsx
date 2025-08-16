@@ -1,32 +1,28 @@
+/**
+ * Form Node Component - Updated for New Schema
+ * Uses the new NodeData schema and event-driven updates instead of 100ms polling
+ */
+
 import React, { memo, useCallback, useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow, useNodeId } from '@xyflow/react';
 import { InputNodeData } from '../types/nodeSchema.js';
 import nodeDataManager, { NodeDataEvents } from '../services/nodeDataManager.js';
-import { formatFormDataForDisplay } from '../utils/helpers';
-import Edit from '../icons/Edit';
-
 import ViewButton from '../components/ViewButton';
-import DeleteButton from './DeleteButton';
-import ResetButton from './ResetButton'
 import { useModal, MODAL_TYPES } from '../contexts/ModalContext';
-import { useGlobal } from '../contexts/GlobalContext';
-import EditButton from './EditButton';
-import ButtonPanel from './ButtonPanel';
+import Edit from '../icons/Edit';
+import Reset from '../icons/Reset';
 
-// Component to show connection count as a badge
-function ConnectionBadge({ connectionCount }) {
-  if (!connectionCount) return null;
-
+// Component to show connection count
+function Connections({ connectionCount }) {
   return (
-    <div className='absolute -top-2 -left-2 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10'>
-      {connectionCount}
+    <div className='text-xs font-thin text-blue-800'>
+      {connectionCount ? connectionCount : ""}
     </div>
   );
 }
 
-function TemplateFormNode({ data }) {
+function FormNodeNew({ data, selected }) {
   const { openModal } = useModal();
-  const { executeWorkflow } = useGlobal();
   const { updateNodeData } = useReactFlow();
   const nodeId = useNodeId();
   const [nodeData, setNodeData] = useState(null);
@@ -48,10 +44,10 @@ function TemplateFormNode({ data }) {
         // Convert from old format
         newNodeData = InputNodeData.create({
           meta: {
-            label: data.label || 'Template Form Node',
-            function: data.function || 'Dynamic Form Template',
+            label: data.label || 'Form Node',
+            function: data.function || 'Dynamic Form',
             emoji: data.emoji || '📝',
-            description: 'Template form node for collecting user input'
+            description: 'Collects user input through dynamic forms'
           },
           input: {
             config: {
@@ -68,10 +64,10 @@ function TemplateFormNode({ data }) {
 
       setNodeData(newNodeData);
 
-      // Register with node data manager
+      // Register with node data manager - use a wrapper to prevent infinite loops
       const safeUpdateNodeData = (nodeId, updates) => {
         // Only update React Flow if the update is not coming from our own component
-        if (updates.data) {
+        if (nodeId === nodeId && updates.data) {
           updateNodeData(nodeId, updates);
         }
       };
@@ -164,6 +160,17 @@ function TemplateFormNode({ data }) {
     }, true); // Trigger processing of connected nodes
   }, [nodeId, nodeData]);
 
+  // Format form data for display
+  const formatFormDataForDisplay = (formData) => {
+    if (!formData || Object.keys(formData).length === 0) {
+      return "No form data";
+    }
+    
+    return Object.entries(formData)
+      .map(([key, value]) => ` ${key}: ${value}`)
+      .join('\n');
+  };
+
   if (!nodeData) {
     return (
       <div className="px-4 py-2 shadow-md rounded-md border-2 border-gray-300 bg-gray-100">
@@ -173,116 +180,91 @@ function TemplateFormNode({ data }) {
   }
 
   return (
-    <div className="group relative">
-      {/* Hover Buttons - Positioned above the node */}
-      <ButtonPanel>
-           <ViewButton
-            data={"```json\n"+JSON.stringify(nodeData,null,2)+"```"}
-            title="Node Data (New Schema)"
-            className=" hover:bg-gray-100"
-          />
-          <DeleteButton
-            className=" hover:bg-red-50"
-            title="Delete Node"
-          />
-          <ResetButton onReset={resetFormData}/>
-          <EditButton onEdit={handleOpenModal}/>
-         
-      </ButtonPanel>
-     
-         
-
-      {/* Connection Badge */}
-      <ConnectionBadge connectionCount={connectionCount} />
-
-      {/* Main Node Container */}
-      <div className="px-4 py-3 shadow-md rounded-lg border-2 border-stone-400 bg-white min-w-[200px] relative">
-        {/* Node Content - Horizontal Layout */}
-        <div className="flex items-center gap-3">
-          {/* Icon Section */}
-          <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100 flex-shrink-0">
-            <span className="text-xl">{nodeData.meta.emoji}</span>
-          </div>
+    <>
+      <div className="px-4 py-2 shadow-md rounded-md border-2 border-stone-400 bg-white">
+        <details>
+          <summary> 
+            <div className="flex items-start justify-between">
+              <div className="flex">
+                <div className="rounded-full w-12 h-12 flex justify-center items-center bg-gray-100">
+                  {nodeData.meta.emoji}
+                </div>
+                <div className="ml-2">
+                  <div className="text-lg font-bold">{nodeData.meta.label}</div>
+                  <div className="text-gray-500">{nodeData.meta.function}</div>
+                  <Connections connectionCount={connectionCount} />
+                  
+                  {/* Processing Status */}
+                  <div className="text-xs text-gray-400 mt-1">
+                    Status: {processingStatus}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Edit and Reset buttons */}
+              <div className='flex'>
+                <ViewButton 
+                  data={`\`\`\`json\n${JSON.stringify(nodeData, null, 2)}\`\`\``} 
+                  title="Node Data (New Schema)" 
+                />
+                <button
+                  onClick={resetFormData}
+                  className="ml-2 p-1 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-gray-100"
+                  title="Reset form data"
+                >
+                  <Reset/>
+                </button>
+                <button
+                  onClick={handleOpenModal}
+                  className="ml-2 p-1 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-gray-100"
+                  title="Edit form data"
+                >
+                  <Edit/>
+                </button>
+              </div>
+            </div>
+          </summary>
           
-          {/* Content Section */}
-          <div className="flex-1 min-w-0">
-            <div className="text-lg font-bold text-gray-900 truncate">{nodeData.meta.label}</div>
-            <div className="flex items-center gap-2">
-              <div className="text-sm text-gray-500 truncate">{nodeData.meta.function}</div>
-              {/* Processing Status Indicator */}
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  processingStatus === 'success' ? 'bg-green-500' :
-                  processingStatus === 'processing' ? 'bg-yellow-500' :
-                  processingStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
-                }`}
-                title={`Status: ${processingStatus}`}
-              />
-              {/* Execution Status Indicator */}
-              <div
-                className={`w-3 h-3 rounded-full ${executeWorkflow ? 'bg-green-500' : 'bg-red-500'}`}
-                title={`Execution: ${executeWorkflow ? 'Enabled' : 'Disabled'}`}
-              />
-            </div>
-            
-            {/* Connection Count Display */}
-            {connectionCount > 0 && (
-              <div className="text-xs text-blue-600 mt-1">
-                {connectionCount} connection{connectionCount !== 1 ? 's' : ''}
-              </div>
-            )}
-            
-            {/* Form Data Preview */}
-            {nodeData.output.data && Object.keys(nodeData.output.data).length > 0 && (
-              <div className="text-xs text-green-600 mt-1 truncate">
-                Data: {formatFormDataForDisplay(nodeData.output.data)}
-              </div>
-            )}
-            
-            {/* Schema Info */}
-            <div className="text-xs text-purple-600 mt-1">
-              {nodeData.meta.category} | v{nodeData.meta.version}
-            </div>
+          {/* Form data display */}
+          <div className="mt-3">
+            <div className="text-xs font-medium text-gray-600 mb-1">Form Data:</div>
+            <pre className="text-green-700 text-xs font-thin bg-gray-50 p-2 rounded border">
+              {formatFormDataForDisplay(nodeData.output.data)}
+            </pre>
           </div>
-        </div>
 
-        {/* React Flow Handles */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!w-3 !h-3 !bg-orange-500 !rounded-full !border-2 !border-white"
-        />
+          {/* Input Summary */}
+          {Object.keys(nodeData.input.processed || {}).length > 0 && (
+            <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+              <div className="font-medium text-blue-800">Connected Inputs:</div>
+              <div className="text-blue-600 mt-1">
+                {Object.keys(nodeData.input.processed).length} source(s) connected
+              </div>
+            </div>
+          )}
+
+          {/* Schema Info */}
+          <div className="mt-3 p-2 bg-purple-50 border border-purple-200 rounded text-xs">
+            <div className="font-medium text-purple-800">Schema Info:</div>
+            <div className="text-purple-600 mt-1">
+              Category: {nodeData.meta.category} | Version: {nodeData.meta.version}
+            </div>
+            {nodeData.meta.capabilities && nodeData.meta.capabilities.length > 0 && (
+              <div className="text-purple-600 mt-1">
+                Capabilities: {nodeData.meta.capabilities.join(', ')}
+              </div>
+            )}
+          </div>
+        </details>
+       
         <Handle
           type="source"
           position={Position.Right}
-          className="!w-3 !h-3 !bg-blue-500 !rounded-full !border-2 !border-white"
+          className="!w-3 !h-3 !bg-blue-500 !rounded-full"
         />
-        
       </div>
-    </div>
+    </>
   );
 }
 
-export default memo(TemplateFormNode);
-
-
-
-/*
-<div className="absolute -top-10 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
-        <div className="flex items-center justify-center gap-1 bg-yellow-100 rounded-lg shadow-lg border border-gray-200 px-2 min-w-[200px]">
-          <ViewButton
-            data={"```json\n"+JSON.stringify(data,null,2)+"```"}
-            title="Node Data"
-            className=" hover:bg-gray-100"
-          />
-          <DeleteButton
-            className=" hover:bg-red-50"
-            title="Delete Node"
-          />
-          <ResetButton onReset={resetFormData}/>
-          <EditButton onEdit={handleOpenModal}/>
-          
-          
-        </div>
-      </div>
-*/
+export default memo(FormNodeNew);
