@@ -5,7 +5,7 @@ import Save from '../icons/Save'
 import Upload from '../icons/Upload'
 
 
-function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel }) {
+function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel, isSubmitting = false }) {
   const { register, handleSubmit, watch, control, formState: { errors } } = useForm({
     defaultValues
   });
@@ -352,17 +352,31 @@ function DynamicForm({ formFields, defaultValues = {}, onSubmit, onCancel }) {
           <button
             type="button"
             onClick={onCancel}
-            className="p-2 text-red-400 hover:text-red-600 transition-colors rounded hover:bg-gray-100 nodrag"
+            disabled={isSubmitting}
+            className={`p-2 transition-colors rounded hover:bg-gray-100 nodrag ${
+              isSubmitting
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'text-red-400 hover:text-red-600'
+            }`}
             title="Cancel"
           >
             <Cancell/>
           </button>
           <button
             type="submit"
-            className="p-2 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-gray-100 nodrag"
-            title="Save Changes"
+            disabled={isSubmitting}
+            className={`p-2 transition-colors rounded hover:bg-gray-100 nodrag ${
+              isSubmitting
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'text-gray-400 hover:text-blue-600'
+            }`}
+            title={isSubmitting ? "Saving..." : "Save Changes"}
           >
-            <Save/>
+            {isSubmitting ? (
+              <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+            ) : (
+              <Save/>
+            )}
           </button>
         </div>
       </form>

@@ -32,6 +32,7 @@ function TemplateFormNode({ data }) {
   const [nodeData, setNodeData] = useState(null);
   const [connectionCount, setConnectionCount] = useState(0);
   const [processingStatus, setProcessingStatus] = useState('idle');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize node with new schema
   useEffect(() => {
@@ -92,7 +93,9 @@ function TemplateFormNode({ data }) {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === nodeId) {
         setNodeData(event.detail.nodeData);
-        setProcessingStatus(event.detail.nodeData.output.meta.status);
+        // Safe access with fallback
+        const status = event.detail.nodeData?.output?.meta?.status || 'idle';
+        setProcessingStatus(status);
       }
     };
 
@@ -131,37 +134,86 @@ function TemplateFormNode({ data }) {
     openModal(MODAL_TYPES.FORM_EDIT, {
       formFields: nodeData.input.config.formFields || [],
       defaultValues: nodeData.output.data || {},
+      isSubmitting,
       onSubmit: async (formData) => {
-        console.log("Form submitted:", nodeId, formData);
-        
-        // Update node data using the new schema
-        await nodeDataManager.updateNodeData(nodeId, {
-          output: {
-            data: formData,
-            meta: {
-              timestamp: new Date().toISOString(),
-              status: 'success',
-              dataSize: JSON.stringify(formData).length
+        setIsSubmitting(true);
+        try {
+          console.log("Form submitted:", nodeId, formData);
+          
+          // Set processing status first
+          await nodeDataManager.updateNodeData(nodeId, {
+            output: {
+              meta: {
+                timestamp: new Date().toISOString(),
+                status: 'processing'
+              }
             }
-          }
-        }, true); // Trigger processing of connected nodes
+          });
+          
+          // Update with actual data
+          await nodeDataManager.updateNodeData(nodeId, {
+            output: {
+              data: formData,
+              meta: {
+                timestamp: new Date().toISOString(),
+                status: 'success',
+                dataSize: JSON.stringify(formData).length
+              }
+            }
+          }, true); // Trigger processing of connected nodes
+          
+        } catch (error) {
+          console.error("Form submission failed:", error);
+          
+          // Set error status
+          await nodeDataManager.updateNodeData(nodeId, {
+            output: {
+              meta: {
+                timestamp: new Date().toISOString(),
+                status: 'error'
+              }
+            },
+            error: {
+              hasError: true,
+              errors: [{
+                code: 'FORM_SUBMISSION_ERROR',
+                message: error.message,
+                source: 'form-submission',
+                timestamp: new Date().toISOString(),
+                details: error.stack
+              }]
+            }
+          });
+          
+          throw error; // Re-throw to handle in modal
+        } finally {
+          setIsSubmitting(false);
+        }
       }
     });
-  }, [openModal, nodeData, nodeId]);
+  }, [openModal, nodeData, nodeId, isSubmitting]);
 
   // Reset function to clear form data
   const resetFormData = useCallback(async () => {
     if (!nodeData) return;
 
-    await nodeDataManager.updateNodeData(nodeId, {
-      output: {
-        data: {},
-        meta: {
-          timestamp: new Date().toISOString(),
-          status: 'idle'
+    try {
+      await nodeDataManager.updateNodeData(nodeId, {
+        output: {
+          data: {},
+          meta: {
+            timestamp: new Date().toISOString(),
+            status: 'idle'
+          }
+        },
+        error: {
+          hasError: false,
+          errors: []
         }
-      }
-    }, true); // Trigger processing of connected nodes
+      }, true); // Trigger processing of connected nodes
+    } catch (error) {
+      console.error("Failed to reset form data:", error);
+    }
   }, [nodeId, nodeData]);
 
   if (!nodeData) {
@@ -233,11 +285,11 @@ function TemplateFormNode({ data }) {
             )}
             
             {/* Form Data Preview */}
-            {nodeData.output.data && Object.keys(nodeData.output.data).length > 0 && (
+            {/*nodeData.output.data && Object.keys(nodeData.output.data).length > 0 && (
               <div className="text-xs text-green-600 mt-1 truncate">
                 Data: {formatFormDataForDisplay(nodeData.output.data)}
               </div>
-            )}
+            )*/}
             
             {/* Schema Info */}
             <div className="text-xs text-purple-600 mt-1">
@@ -247,11 +299,11 @@ function TemplateFormNode({ data }) {
         </div>
 
         {/* React Flow Handles */}
-        <Handle
+        {/*<Handle
           type="target"
           position={Position.Left}
           className="!w-3 !h-3 !bg-orange-500 !rounded-full !border-2 !border-white"
-        />
+        />*/}
         <Handle
           type="source"
           position={Position.Right}
@@ -265,24 +317,3 @@ function TemplateFormNode({ data }) {
 
 export default memo(TemplateFormNode);
 
-
-
-/*
-<div className="absolute -top-10 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
-        <div className="flex items-center justify-center gap-1 bg-yellow-100 rounded-lg shadow-lg border border-gray-200 px-2 min-w-[200px]">
-          <ViewButton
-            data={"```json\n"+JSON.stringify(data,null,2)+"```"}
-            title="Node Data"
-            className=" hover:bg-gray-100"
-          />
-          <DeleteButton
-            className=" hover:bg-red-50"
-            title="Delete Node"
-          />
-          <ResetButton onReset={resetFormData}/>
-          <EditButton onEdit={handleOpenModal}/>
-          
-          
-        </div>
-      </div>
-*/
