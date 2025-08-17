@@ -4,66 +4,73 @@
 
 ```mermaid
 graph TB
+    subgraph "React Flow Node Structure"
+        ReactFlowNode["React Flow Node"]
+        ReactFlowNode --> NodeId["id: string"]
+        ReactFlowNode --> Position["position: {x, y}"]
+        ReactFlowNode --> NodeType["type?: string"]
+        ReactFlowNode --> Style["style?: CSSProperties"]
+        ReactFlowNode --> NodeData["data: NodeData"]
+    end
+
     subgraph "Node Data Schema"
-        NodeData[NodeData]
-        NodeData --> Meta[meta: NodeMeta]
-        NodeData --> Input[input: NodeInput]
-        NodeData --> Output[output: NodeOutput]
-        NodeData --> Error[error: NodeError]
-        NodeData --> Plugin[plugin?: NodePlugin]
-        NodeData --> UI[ui: NodeUI]
+        NodeData --> Meta["meta: NodeMeta"]
+        NodeData --> Input["input: NodeInput"]
+        NodeData --> Output["output: NodeOutput"]
+        NodeData --> Error["error: NodeError"]
+        NodeData --> Plugin["plugin?: NodePlugin"]
     end
 
     subgraph "Input Structure"
-        Input --> Connections[connections: ConnectionData[]]
-        Input --> Processed[processed: Object]
-        Input --> Config[config: Object]
+        Input --> Connections["connections: ConnectionData[]"]
+        Input --> Processed["processed: Object"]
+        Input --> Config["config: Object"]
 
-        Connections --> ConnData[ConnectionData]
-        ConnData --> SourceId[sourceNodeId]
-        ConnData --> SourceLabel[sourceLabel]
-        ConnData --> Data[data: any]
-        ConnData --> Timestamp[timestamp]
-        ConnData --> Status[status: pending|received|error]
+        Connections --> ConnData["ConnectionData"]
+        ConnData --> SourceId["sourceNodeId"]
+        ConnData --> SourceLabel["sourceLabel"]
+        ConnData --> Data["data: any"]
+        ConnData --> Timestamp["timestamp"]
+        ConnData --> Status["status: pending|received|error"]
     end
 
     subgraph "Output Structure"
-        Output --> OutData[data: Object]
-        Output --> OutMeta[meta: OutputMeta]
+        Output --> OutData["data: Object"]
+        Output --> OutMeta["meta: OutputMeta"]
 
-        OutMeta --> OutTimestamp[timestamp]
-        OutMeta --> OutStatus[status: idle|processing|success|error]
-        OutMeta --> ProcessTime[processingTime?]
-        OutMeta --> DataSize[dataSize?]
+        OutMeta --> OutTimestamp["timestamp"]
+        OutMeta --> OutStatus["status: idle|processing|success|error"]
+        OutMeta --> ProcessTime["processingTime?"]
+        OutMeta --> DataSize["dataSize?"]
     end
 
     subgraph "Plugin System"
-        Plugin --> PluginName[name: string]
-        Plugin --> PluginVersion[version: string]
-        Plugin --> PluginConfig[config: Object]
-        Plugin --> PluginState[state: Object]
+        Plugin --> PluginName["name: string"]
+        Plugin --> PluginVersion["version: string"]
+        Plugin --> PluginConfig["config: Object"]
+        Plugin --> PluginState["state: Object"]
 
-        PluginRegistry[Plugin Registry]
-        PluginRegistry --> LLMPlugin[LLM Processor]
-        PluginRegistry --> DataTransformer[Data Transformer]
-        PluginRegistry --> CustomPlugin[Custom Plugins...]
+        PluginRegistry["Plugin Registry"]
+        PluginRegistry --> LLMPlugin["LLM Processor"]
+        PluginRegistry --> DataTransformer["Data Transformer"]
+        PluginRegistry --> CustomPlugin["Custom Plugins..."]
 
-        INodePlugin[INodePlugin Interface]
-        INodePlugin --> Initialize[initialize()]
-        INodePlugin --> Process[process()]
-        INodePlugin --> Cleanup[cleanup()]
-        INodePlugin --> GetCapabilities[getCapabilities()]
+        INodePlugin["INodePlugin Interface"]
+        INodePlugin --> Initialize["initialize()"]
+        INodePlugin --> Process["process()"]
+        INodePlugin --> Cleanup["cleanup()"]
+        INodePlugin --> GetCapabilities["getCapabilities()"]
     end
 
     subgraph "Data Flow"
-        InputNode[Input Node] --> ProcessNode[Process Node]
-        ProcessNode --> OutputNode[Output Node]
+        InputNode["Input Node"] --> ProcessNode["Process Node"]
+        ProcessNode --> OutputNode["Output Node"]
 
-        ProcessNode --> PluginExecution[Plugin Execution]
-        PluginExecution --> InputAggregation[Input Aggregation]
-        PluginExecution --> DataProcessing[Data Processing]
-        PluginExecution --> OutputGeneration[Output Generation]
-        PluginExecution --> ErrorHandling[Error Handling]
+        ProcessNode --> PluginExecution["Plugin Execution"]
+        PluginExecution --> InputAggregation["Input Aggregation"]
+        PluginExecution --> DataProcessing["Data Processing"]
+        PluginExecution --> OutputGeneration["Output Generation"]
+        PluginExecution --> ErrorHandling["Error Handling"]
     end
 ```
 
@@ -77,7 +84,6 @@ classDiagram
         +output: NodeOutput
         +error: NodeError
         +plugin?: NodePlugin
-        +ui: NodeUI
     }
 
     class InputNodeData {

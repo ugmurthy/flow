@@ -7,11 +7,23 @@ This document defines a standardized data schema for all nodes in the JobRunner 
 ## Core Schema Structure
 
 ```typescript
+// React Flow Node structure (top-level properties as per React Flow spec)
+interface Node {
+  id: string; // React Flow required
+  position: { x: number; y: number }; // React Flow required
+  data: NodeData; // Our custom data structure
+  type?: string; // React Flow node type
+  style?: CSSProperties; // React Flow styling
+  className?: string; // React Flow CSS class
+  draggable?: boolean; // React Flow drag behavior
+  selectable?: boolean; // React Flow selection
+  // ... other React Flow properties
+}
+
+// Updated NodeData - no redundancy with React Flow properties
 interface NodeData {
-  // Node Metadata (immutable properties)
+  // Node Metadata (application-specific, non-redundant with React Flow)
   meta: {
-    id: string; // Unique node identifier
-    type: string; // Node type (formNode, processNode, etc.)
     label: string; // Display name
     description?: string; // Optional description
     function: string; // Functional description
@@ -23,41 +35,27 @@ interface NodeData {
 
   // Input Data Structure
   input: {
-    // Direct inputs from connected nodes
     connections: {
       [edgeId: string]: {
         sourceNodeId: string;
         sourceLabel: string;
-        data: any; // Output data from source node
-        timestamp: string; // When data was received
+        data: any;
+        timestamp: string;
         status: "pending" | "received" | "error";
       };
     };
-
-    // Aggregated/processed input data
-    processed: {
-      [key: string]: any; // Combined and processed input data
-    };
-
-    // Configuration/form data specific to this node
-    config: {
-      [key: string]: any; // Node-specific configuration
-    };
+    processed: Record<string, any>;
+    config: Record<string, any>;
   };
 
   // Output Data Structure
   output: {
-    // Primary output data
-    data: {
-      [key: string]: any; // Processed output data
-    };
-
-    // Metadata about the output
+    data: Record<string, any>;
     meta: {
-      timestamp: string; // When output was generated
+      timestamp: string;
       status: "idle" | "processing" | "success" | "error";
-      processingTime?: number; // Time taken to process (ms)
-      dataSize?: number; // Size of output data
+      processingTime?: number;
+      dataSize?: number;
     };
   };
 
@@ -65,35 +63,20 @@ interface NodeData {
   error: {
     hasError: boolean;
     errors: Array<{
-      code: string; // Error code
-      message: string; // Human readable message
-      timestamp: string; // When error occurred
+      code: string;
+      message: string;
+      timestamp: string;
       source: "input" | "processing" | "output";
-      details?: any; // Additional error context
+      details?: any;
     }>;
   };
 
   // Plugin Configuration (for Process nodes)
   plugin?: {
-    name: string; // Plugin identifier
-    version: string; // Plugin version
-    config: {
-      [key: string]: any; // Plugin-specific configuration
-    };
-    state: {
-      [key: string]: any; // Plugin runtime state
-    };
-  };
-
-  // UI State (for rendering)
-  ui: {
-    position: { x: number; y: number };
-    size?: { width: number; height: number };
-    collapsed?: boolean;
-    selected?: boolean;
-    style?: {
-      [key: string]: any; // Custom styling
-    };
+    name: string;
+    version: string;
+    config: Record<string, any>;
+    state: Record<string, any>;
   };
 }
 ```

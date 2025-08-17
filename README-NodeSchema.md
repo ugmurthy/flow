@@ -73,15 +73,29 @@ Visual representations of:
 ## Core Schema Structure
 
 ```typescript
+// React Flow Node structure (top-level properties as per React Flow spec)
+interface Node {
+  id: string; // React Flow required
+  position: { x: number; y: number }; // React Flow required
+  data: NodeData; // Our custom data structure
+  type?: string; // React Flow node type
+  style?: CSSProperties; // React Flow styling
+  className?: string; // React Flow CSS class
+  draggable?: boolean; // React Flow drag behavior
+  selectable?: boolean; // React Flow selection
+  // ... other React Flow properties
+}
+
+// Updated NodeData - no redundancy with React Flow properties
 interface NodeData {
   meta: {
-    id: string;
-    type: string;
-    label: string;
-    function: string;
-    emoji: string;
+    label: string; // Display name
+    description?: string; // Optional description
+    function: string; // Functional description
+    emoji: string; // Visual icon
+    version: string; // Schema version
     category: "input" | "process" | "output";
-    capabilities: string[];
+    capabilities: string[]; // What this node can do
   };
 
   input: {
@@ -96,6 +110,7 @@ interface NodeData {
       timestamp: string;
       status: "idle" | "processing" | "success" | "error";
       processingTime?: number;
+      dataSize?: number;
     };
   };
 
@@ -106,6 +121,7 @@ interface NodeData {
       message: string;
       source: "input" | "processing" | "output";
       timestamp: string;
+      details?: any;
     }>;
   };
 
@@ -113,11 +129,7 @@ interface NodeData {
     name: string;
     version: string;
     config: Record<string, any>;
-  };
-
-  ui: {
-    position: { x: number; y: number };
-    style?: Record<string, any>;
+    state: Record<string, any>;
   };
 }
 ```

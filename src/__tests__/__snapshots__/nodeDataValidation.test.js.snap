@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`NodeData Validation Functions > validateError() > Positive Test Cases > Snapshot Tests > should match error result structure snapshot > failed-node-validation 1`] = `
+{
+  "data": null,
+  "errors": [],
+  "failedSections": [
+    "meta",
+    "input",
+    "output",
+    "error",
+    "plugin",
+  ],
+  "sectionsValidated": {
+    "error": false,
+    "input": false,
+    "meta": false,
+    "output": false,
+    "plugin": false,
+  },
+  "success": false,
+  "validSections": [],
+}
+`;
+
+exports[`NodeData Validation Functions > validateError() > Positive Test Cases > Snapshot Tests > should match validation result structure snapshot > successful-node-validation 1`] = `
+{
+  "data": null,
+  "errors": [],
+  "failedSections": [
+    "input",
+  ],
+  "sectionsValidated": {
+    "error": true,
+    "input": false,
+    "meta": true,
+    "output": true,
+    "plugin": true,
+  },
+  "success": false,
+  "validSections": [
+    "meta",
+    "output",
+    "error",
+    "plugin",
+  ],
+}
+`;

@@ -9,19 +9,29 @@ This guide provides practical implementation examples for the standardized node 
 ### 1. Type Definitions (`src/types/nodeSchema.ts`)
 
 ```typescript
-// Base Node Data Interface
+// React Flow Node structure (top-level properties as per React Flow spec)
+export interface Node {
+  id: string; // React Flow required
+  position: { x: number; y: number }; // React Flow required
+  data: NodeData; // Our custom data structure
+  type?: string; // React Flow node type
+  style?: CSSProperties; // React Flow styling
+  className?: string; // React Flow CSS class
+  draggable?: boolean; // React Flow drag behavior
+  selectable?: boolean; // React Flow selection
+  // ... other React Flow properties
+}
+
+// Base Node Data Interface - no redundancy with React Flow properties
 export interface NodeData {
   meta: NodeMeta;
   input: NodeInput;
   output: NodeOutput;
   error: NodeError;
   plugin?: NodePlugin;
-  ui: NodeUI;
 }
 
 export interface NodeMeta {
-  id: string;
-  type: string;
   label: string;
   description?: string;
   function: string;
@@ -71,14 +81,6 @@ export interface NodePlugin {
   version: string;
   config: Record<string, any>;
   state: Record<string, any>;
-}
-
-export interface NodeUI {
-  position: { x: number; y: number };
-  size?: { width: number; height: number };
-  collapsed?: boolean;
-  selected?: boolean;
-  style?: Record<string, any>;
 }
 
 // Plugin System Interfaces

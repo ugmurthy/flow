@@ -5,11 +5,17 @@ import '@xyflow/react/dist/style.css';
 import './index.css'
 
 import Process from './components/Process.jsx'
+import ProcessNew from './components/ProcessNew.jsx'
 import Leaf from './components/Leaf.jsx';
 import FormNode from './components/FormNode.jsx';
+import FormNodeNew from './components/FormNodeNew.jsx';
 import FetchNode from './components/FetchNode.jsx';
+import FetchNodeNew from './components/FetchNodeNew.jsx';
 import MarkdownNode from './components/MarkdownNode.jsx';
+import MarkdownNew from './components/MarkdownNew.jsx';
 import TemplateFormNode from './components/templateFormNode.jsx';
+import schemaInitializer from './services/schemaInitializer.js';
+import { InputNodeData, ProcessNodeData, OutputNodeData } from './types/nodeSchema.js';
 import WorkflowFAB from './components/WorkflowFAB.jsx';
 import SaveWorkflowModal from './components/SaveWorkflowModal.jsx';
 import LoadWorkflowModal from './components/LoadWorkflowModal.jsx';
@@ -18,115 +24,248 @@ import { ModalProvider } from './contexts/ModalContext.jsx';
 import { WorkflowProvider, useWorkflow } from './contexts/WorkflowContext.jsx';
 import { GlobalProvider } from './contexts/GlobalContext.jsx';
 
-const initialNodes = [
+// Initialize the schema system
+const initializeSchemaSystem = async () => {
+  try {
+    await schemaInitializer.initialize({
+      registerBuiltinPlugins: true,
+      validateOnInit: true,
+      pluginConfigs: {
+        llmProcessor: {
+          provider: 'ollama',
+          baseUrl: 'http://localhost:11434',
+          model: 'llama3.2',
+          maxTokens: 4096,
+          temperature: 0.7
+        },
+        dataTransformer: {
+          strategy: 'merge',
+          preserveMetadata: true,
+          errorHandling: 'skip'
+        }
+      }
+    });
+    console.log('Schema system initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize schema system:', error);
+  }
+};
 
+// Initialize on app load
+initializeSchemaSystem();
+
+const initialNodes = [
+  // Form Node with New Schema
   {
     id: 'f1',
-    position: { x: 200, y: 50 },
-    data: {
-      label: "Form Node",
-      function: "Dynamic Form",
-      emoji: '📝',
-      formFields: [
-        { name: 'username', type: 'text', label: 'Username', required: true },
-        { name: 'email', type: 'email', label: 'Email Address', required: true },
-        { name: 'website', type: 'url', label: 'Website URL' },
-        { name: 'age', type: 'number', label: 'Age' },
-        { name: 'priority', type: 'range', label: 'Priority Level', min: 1, max: 10, step: 1 },
-        { name: 'appointment', type: 'datetime-local', label: 'Appointment Date & Time' },
-        { name: 'meeting_time', type: 'time', label: 'Meeting Time' },
-        { name: 'bio', type: 'textarea', label: 'Biography' },
-        { name: 'role', type: 'select', label: 'Role', options: [
-          { value: 'admin', label: 'Administrator' },
-          { value: 'user', label: 'User' },
-          { value: 'guest', label: 'Guest' }
-        ]},
-        { name: 'user_id', type: 'hidden', label: 'User ID' }
-      ],
-      formData: {
-        priority: 5,
-        user_id: ''
+    position: { x: 50, y: 50 },
+    data: InputNodeData.create({
+      meta: {
+        label: "Form Node",
+        function: "Dynamic Form",
+        emoji: '📝',
+        description: 'Collects user input through dynamic forms',
+        category: "input"
+      },
+      input: {
+        config: {
+          formFields: [
+            { name: 'username', type: 'text', label: 'Username', required: true },
+            { name: 'email', type: 'email', label: 'Email Address', required: true },
+            { name: 'website', type: 'url', label: 'Website URL' },
+            { name: 'age', type: 'number', label: 'Age' },
+            { name: 'priority', type: 'range', label: 'Priority Level', min: 1, max: 10, step: 1 },
+            { name: 'appointment', type: 'datetime-local', label: 'Appointment Date & Time' },
+            { name: 'meeting_time', type: 'time', label: 'Meeting Time' },
+            { name: 'bio', type: 'textarea', label: 'Biography' },
+            { name: 'role', type: 'select', label: 'Role', options: [
+              { value: 'admin', label: 'Administrator' },
+              { value: 'user', label: 'User' },
+              { value: 'guest', label: 'Guest' }
+            ]},
+            { name: 'user_id', type: 'hidden', label: 'User ID' }
+          ],
+          validation: {}
+        }
+      },
+      output: {
+        data: {
+          priority: 5,
+          user_id: ''
+        }
       }
-    },
+    }),
     type: 'templateFormNode'
   },
+  
+  // Advanced Form Node with New Schema
   {
     id: 'f2',
-    position: { x: 400, y: 50 },
-    data: {
-      label: "Advanced Form",
-      function: "File & Checkbox Demo",
-      emoji: '📋',
-      formFields: [
-        { name: 'project_name', type: 'text', label: 'Project Name', required: true },
-        { name: 'documents', type: 'file', label: 'Upload Documents', multiple: true, accept: '.pdf,.doc,.docx,.txt', required: true },
-        { name: 'profile_image', type: 'file', label: 'Profile Image', accept: 'image/*' },
-        { name: 'terms_accepted', type: 'checkbox', label: 'I agree to the terms and conditions', required: true },
-        { name: 'newsletter_subscribe', type: 'checkbox', label: 'Subscribe to newsletter' },
-        { name: 'privacy_consent', type: 'checkbox', label: 'I consent to data processing', required: true },
-        { name: 'description', type: 'textarea', label: 'Project Description' }
-      ],
-      formData: {
-        newsletter_subscribe: false,
-        terms_accepted: false,
-        privacy_consent: false
+    position: { x: 50, y: 150 },
+    data: InputNodeData.create({
+      meta: {
+        label: "Advanced Form",
+        function: "File & Checkbox Demo",
+        emoji: '📋',
+        description: 'Advanced form with file uploads and checkboxes',
+        category: "input"
+      },
+      input: {
+        config: {
+          formFields: [
+            { name: 'project_name', type: 'text', label: 'Project Name', required: true },
+            { name: 'documents', type: 'file', label: 'Upload Documents', multiple: true, accept: '.pdf,.doc,.docx,.txt', required: true },
+            { name: 'profile_image', type: 'file', label: 'Profile Image', accept: 'image/*' },
+            { name: 'terms_accepted', type: 'checkbox', label: 'I agree to the terms and conditions', required: true },
+            { name: 'newsletter_subscribe', type: 'checkbox', label: 'Subscribe to newsletter' },
+            { name: 'privacy_consent', type: 'checkbox', label: 'I consent to data processing', required: true },
+            { name: 'description', type: 'textarea', label: 'Project Description' }
+          ],
+          validation: {}
+        }
+      },
+      output: {
+        data: {
+          newsletter_subscribe: false,
+          terms_accepted: false,
+          privacy_consent: false
+        }
       }
-    },
+    }),
     type: 'templateFormNode'
   },
+  
+  // Prompt Input Node with New Schema
   {
     id: 'f3',
-    position: { x: 200, y: 200 },
-    data: {
-      label: "Prompt",
-      function: "Input",
-      emoji: '🖋️',
-      formFields: [
-        {name:'max_tokens',type:'hidden'},
-        { name: 'prompt', type: 'textarea', label: 'Prompt' },
-        { name: 'model', type: 'select', label: 'Model', options: [
-          { value: 'llama3.2', label: 'llama3.2' },
-          { value: 'gemma3:27b', label: 'gemma3:27b' },
-          { value: 'gpt-oss', label: 'gpt-oss' }
-        ]}
-      ],
-      formData: {
-        prompt: "",
-        model: "gpt-oss",
-        max_tokens:4096
+    position: { x: 50, y: 250 },
+    data: InputNodeData.create({
+      meta: {
+        label: "Prompt",
+        function: "LLM Input",
+        emoji: '🖋️',
+        description: 'Input node for LLM prompts and model selection',
+        category: "input"
+      },
+      input: {
+        config: {
+          formFields: [
+            {name:'max_tokens',type:'hidden'},
+            { name: 'prompt', type: 'textarea', label: 'Prompt' },
+            { name: 'model', type: 'select', label: 'Model', options: [
+              { value: 'llama3.2', label: 'llama3.2' },
+              { value: 'gemma3:27b', label: 'gemma3:27b' },
+              { value: 'gpt-oss', label: 'gpt-oss' }
+            ]}
+          ],
+          validation: {}
+        }
+      },
+      output: {
+        data: {
+          prompt: "",
+          model: "llama3.2",
+          max_tokens: 4096
+        }
       }
-    },
+    }),
     type: 'templateFormNode'
   },
-  { id: 'llm-1', position: { x: 100, y: 125 },
-  data: {
-    label:"Ollama",function:"Inference",  emoji: '⚙️' ,formData:{method:"POST",stream:false,url:"http://localhost:11434/api/chat",options:{},} },
-    type:'processNode',} ,
+  
+  // LLM Process Node with New Schema
+  {
+    id: 'llm-1',
+    position: { x: 100, y: 125 },
+    data: ProcessNodeData.create({
+      meta: {
+        label: "Ollama LLM",
+        function: "LLM Inference",
+        emoji: '⚙️',
+        description: 'Processes text using Ollama LLM'
+      },
+      input: {
+        config: {
+          aggregationStrategy: 'merge',
+          requiredInputs: ['prompt'],
+          expectedDataTypes: ['object', 'string']
+        }
+      },
+      output: {
+        data: {}
+      },
+      plugin: {
+        name: 'llm-processor',
+        config: {
+          provider: 'ollama',
+          baseUrl: 'http://localhost:11434',
+          model: 'llama3.2',
+          maxTokens: 4096,
+          temperature: 0.7,
+          inputCombinationStrategy: 'structured'
+        }
+      }
+    }),
+    type: 'processNew'
+  },
+  
+  // API Fetch Node with New Schema
   {
     id: 'fetch-1',
     position: { x: 400, y: 200 },
-    data: {
-      label: "API Fetch",
-      function: "HTTP Request",
-      emoji: '🌐',
-      formData: {
-        url: 'https://jsonplaceholder.typicode.com/posts/1',
-        method: 'GET',
-        result: null,
-        error: null,
-        status: 'idle'
+    data: ProcessNodeData.create({
+      meta: {
+        label: "API Fetch",
+        function: "HTTP Request",
+        emoji: '🌐',
+        description: 'Performs HTTP requests to external APIs'
+      },
+      input: {
+        config: {
+          url: 'https://jsonplaceholder.typicode.com/posts/1',
+          method: 'GET',
+          headers: {},
+          timeout: 30000,
+          autoFetch: true
+        }
+      },
+      output: {
+        data: {
+          result: null,
+          status: 'idle',
+          error: null,
+          responseTime: null,
+          statusCode: null
+        }
       }
-    },
-    type: 'fetchNode'
+    }),
+    type: 'fetchNodeNew'
   },
+  
+  // Markdown Display Node with New Schema
   {
     id: 'md-1',
     position: { x: 600, y: 50 },
-    data: {
-      label: "Markdown Display",
-      function: "Renderer",
-      emoji: '📝',
-      content: `# Markdown Renderer
+    data: OutputNodeData.create({
+      meta: {
+        label: "Markdown Display",
+        function: "Renderer",
+        emoji: '📝',
+        description: 'Renders markdown content with syntax highlighting'
+      },
+      input: {
+        config: {
+          displayFormat: 'markdown',
+          autoUpdate: true,
+          styleConfig: {
+            width: 'auto',
+            textColor: '#374151',
+            fontSize: '14px'
+          }
+        }
+      },
+      output: {
+        data: {
+          content: `# Markdown Renderer
 
 ## Code Example
 \`\`\`javascript
@@ -150,40 +289,52 @@ function greet(name) {
 | Tables | ✅ |
 
 > This content can be dynamically updated by connecting other nodes!`,
-      styleConfig: {
-        width: 'auto',
-        textColor: '#374151',
-        fontSize: '14px'
+          wordCount: 45,
+          lastUpdated: new Date().toISOString()
+        }
       }
-    },
-    type: 'markdownNode'
+    }),
+    type: 'markdownNew'
   },
+  
+  // Template Form Node with New Schema
   {
     id: 'template-1',
-    position: { x: 800, y: 50 },
-    data: {
-      label: "Template Form",
-      function: "Enhanced Form Node",
-      emoji: '🎯',
-      formFields: [
-        { name: 'task_name', type: 'text', label: 'Task Name', required: true },
-        { name: 'priority', type: 'select', label: 'Priority', options: [
-          { value: 'low', label: 'Low' },
-          { value: 'medium', label: 'Medium' },
-          { value: 'high', label: 'High' },
-          { value: 'urgent', label: 'Urgent' }
-        ]},
-        { name: 'due_date', type: 'datetime-local', label: 'Due Date' },
-        { name: 'completion', type: 'range', label: 'Completion %', min: 0, max: 100, step: 5 },
-        { name: 'notes', type: 'textarea', label: 'Notes' },
-        { name: 'active', type: 'checkbox', label: 'Active Task' }
-      ],
-      formData: {
-        priority: 'medium',
-        completion: 0,
-        active: true
+    position: { x: 50, y: 350 },
+    data: InputNodeData.create({
+      meta: {
+        label: "Template Form",
+        function: "Enhanced Form Node",
+        emoji: '🎯',
+        description: 'Template-based form for task management',
+        category: "input"
+      },
+      input: {
+        config: {
+          formFields: [
+            { name: 'task_name', type: 'text', label: 'Task Name', required: true },
+            { name: 'priority', type: 'select', label: 'Priority', options: [
+              { value: 'low', label: 'Low' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'high', label: 'High' },
+              { value: 'urgent', label: 'Urgent' }
+            ]},
+            { name: 'due_date', type: 'datetime-local', label: 'Due Date' },
+            { name: 'completion', type: 'range', label: 'Completion %', min: 0, max: 100, step: 5 },
+            { name: 'notes', type: 'textarea', label: 'Notes' },
+            { name: 'active', type: 'checkbox', label: 'Active Task' }
+          ],
+          validation: {}
+        }
+      },
+      output: {
+        data: {
+          priority: 'medium',
+          completion: 0,
+          active: true
+        }
       }
-    },
+    }),
     type: 'templateFormNode'
   },
 ];
@@ -464,6 +615,7 @@ export default function App() {
           onNodesChange={(changes) => {
             // Let React Flow handle the changes first, then trigger our handlers
             setTimeout(() => {
+              console.log("OnNodesChange")
               const appContent = document.querySelector('[data-workflow-content]');
               if (appContent) {
                 appContent.dispatchEvent(new CustomEvent('nodesChanged', { detail: changes }));
@@ -473,6 +625,7 @@ export default function App() {
           onEdgesChange={(changes) => {
             // Let React Flow handle the changes first, then trigger our handlers
             setTimeout(() => {
+              console.log("OnEdgeChange")
               const appContent = document.querySelector('[data-workflow-content]');
               if (appContent) {
                 appContent.dispatchEvent(new CustomEvent('edgesChanged', { detail: changes }));
@@ -482,8 +635,10 @@ export default function App() {
           onConnect={(connection) => {
             // Let React Flow handle the connection first, then trigger our handlers
             setTimeout(() => {
+              console.log("OnConnect")
               const appContent = document.querySelector('[data-workflow-content]');
               if (appContent) {
+                console.log("OnConnect dispatching Event")
                 appContent.dispatchEvent(new CustomEvent('connected', { detail: connection }));
               }
             }, 0);
@@ -491,10 +646,14 @@ export default function App() {
           fitView
           nodeTypes={{
             processNode: Process,
+            processNew: ProcessNew,
             leafNode: Leaf,
             formNode: FormNode,
+            formNodeNew: FormNodeNew,
             fetchNode: FetchNode,
+            fetchNodeNew: FetchNodeNew,
             markdownNode: MarkdownNode,
+            markdownNew: MarkdownNew,
             templateFormNode: TemplateFormNode,
           }}
         >

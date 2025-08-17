@@ -40,13 +40,20 @@ const ModalComponents = {
           <DynamicForm
             formFields={data.formFields || []}
             defaultValues={data.defaultValues || {}}
-            onSubmit={(formData) => {
-              // Call the original onSubmit handler
-              if (data.onSubmit) {
-                data.onSubmit(formData);
+            isSubmitting={data.isSubmitting || false}
+            onSubmit={async (formData) => {
+              try {
+                // Call the original onSubmit handler and wait for completion
+                if (data.onSubmit) {
+                  await data.onSubmit(formData);
+                }
+                // Close the modal only after successful submission
+                onClose();
+              } catch (error) {
+                // Error is handled in the component, modal stays open
+                console.error("Submission failed:", error);
+                // Could add error state to show in modal if needed
               }
-              // Close the modal after successful submission
-              onClose();
             }}
             onCancel={onClose}
           />

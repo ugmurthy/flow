@@ -91,6 +91,7 @@ function ProcessNew({ data, selected }) {
     };
 
     const handleNodeProcessing = (event) => {
+      console.log("hanfleNodeProcessing Event ",event)
       if (event.detail.nodeId === currentNodeId) {
         setProcessingStatus('processing');
       }

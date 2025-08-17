@@ -1,0 +1,142 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ErrorSchema Data Validation Functions > validateError() > Positive Test Cases > Snapshot Tests > should match error result structure snapshot > failed-node-validation 1`] = `
+{
+  "data": null,
+  "errors": [
+    {
+      "code": "invalid_type",
+      "message": "Required",
+      "path": "meta.label",
+      "received": "undefined",
+      "section": "meta",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>rray",
+      "path": "input.connections",
+      "received": "array",
+      "section": "input",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>tring",
+      "path": "input.processed",
+      "received": "string",
+      "section": "input",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>ull",
+      "path": "input.config",
+      "received": "null",
+      "section": "input",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Required",
+      "path": "output.meta",
+      "received": "undefined",
+      "section": "output",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Required",
+      "path": "error.hasError",
+      "received": "undefined",
+      "section": "error",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>umber",
+      "path": "plugin.name",
+      "received": "number",
+      "section": "plugin",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>ull",
+      "path": "plugin.version",
+      "received": "null",
+      "section": "plugin",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>tring",
+      "path": "plugin.config",
+      "received": "string",
+      "section": "plugin",
+    },
+    {
+      "code": "invalid_type",
+      "message": "Expected <<TYPE>>, received <<TYPE>>rray",
+      "path": "plugin.state",
+      "received": "array",
+      "section": "plugin",
+    },
+  ],
+  "failedSections": [
+    "meta",
+    "input",
+    "output",
+    "error",
+    "plugin",
+  ],
+  "sectionsValidated": {
+    "error": false,
+    "input": false,
+    "meta": false,
+    "output": false,
+    "plugin": false,
+  },
+  "success": false,
+  "validSections": [],
+}
+`;
+
+exports[`ErrorSchema Data Validation Functions > validateError() > Positive Test Cases > Snapshot Tests > should match validation result structure snapshot > successful-node-validation 1`] = `
+{
+  "data": {
+    "error": {
+      "errors": [],
+      "hasError": false,
+    },
+    "input": {
+      "config": "<<CONFIG>>",
+      "connections": "<<CONNECTIONS>>",
+      "processed": "<<PROCESSED>>",
+    },
+    "meta": {
+      "capabilities": [],
+      "category": "input",
+      "description": "Collects user input through dynamic forms",
+      "emoji": "📝",
+      "function": "Dynamic Form",
+      "label": "Form Node",
+      "version": "1.0.0",
+    },
+    "output": {
+      "data": "<<OUTPUT_DATA>>",
+      "meta": "<<OUTPUT_META>>",
+    },
+    "plugin": null,
+  },
+  "errors": [],
+  "failedSections": [],
+  "sectionsValidated": {
+    "error": true,
+    "input": true,
+    "meta": true,
+    "output": true,
+    "plugin": true,
+  },
+  "success": true,
+  "validSections": [
+    "meta",
+    "input",
+    "output",
+    "error",
+    "plugin",
+  ],
+}
+`;
