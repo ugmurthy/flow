@@ -4,11 +4,9 @@ import '@xyflow/react/dist/style.css';
 //import './tailwind-config.js';
 import './index.css'
 
-import Process from './components/Process.jsx'
+
 import ProcessNew from './components/ProcessNew.jsx'
-import Leaf from './components/Leaf.jsx';
-import FormNode from './components/FormNode.jsx';
-import FormNodeNew from './components/FormNodeNew.jsx';
+
 import FetchNode from './components/FetchNode.jsx';
 import FetchNodeNew from './components/FetchNodeNew.jsx';
 import MarkdownNode from './components/MarkdownNode.jsx';
@@ -645,11 +643,7 @@ export default function App() {
           }}
           fitView
           nodeTypes={{
-            processNode: Process,
             processNew: ProcessNew,
-            leafNode: Leaf,
-            formNode: FormNode,
-            formNodeNew: FormNodeNew,
             fetchNode: FetchNode,
             fetchNodeNew: FetchNodeNew,
             markdownNode: MarkdownNode,
