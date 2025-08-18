@@ -13,6 +13,7 @@ import MarkdownNode from './components/MarkdownNode.jsx';
 import MarkdownNew from './components/MarkdownNew.jsx';
 import TemplateFormNode from './components/templateFormNode.jsx';
 import schemaInitializer from './services/schemaInitializer.js';
+import nodeDataManager from './services/nodeDataManager.js';
 import { InputNodeData, ProcessNodeData, OutputNodeData } from './types/nodeSchema.js';
 import WorkflowFAB from './components/WorkflowFAB.jsx';
 import SaveWorkflowModal from './components/SaveWorkflowModal.jsx';
@@ -601,6 +602,27 @@ function AppContent() {
   );
 }
 
+// ReactFlow Event Handlers Component
+function ReactFlowEventHandlers() {
+  const { getNodes, getEdges } = useReactFlow();
+
+  // Initialize NodeDataManager
+  useEffect(() => {
+    const initializeNodeDataManager = async () => {
+      try {
+        await nodeDataManager.initialize();
+        console.log('NodeDataManager initialized in ReactFlow component');
+      } catch (error) {
+        console.error('Failed to initialize NodeDataManager:', error);
+      }
+    };
+    
+    initializeNodeDataManager();
+  }, []);
+
+  return null; // This component only handles side effects
+}
+
 // Main App with Providers
 export default function App() {
   return (
@@ -612,8 +634,22 @@ export default function App() {
           defaultEdges={initialEdges}
           onNodesChange={(changes) => {
             // Let React Flow handle the changes first, then trigger our handlers
-            setTimeout(() => {
+            setTimeout(async () => {
               console.log("OnNodesChange")
+              
+              // Handle node removals in NodeDataManager
+              for (const change of changes) {
+                if (change.type === 'remove') {
+                  try {
+                    nodeDataManager.unregisterNode(change.id);
+                    console.log(`Node ${change.id} unregistered from NodeDataManager`);
+                  } catch (error) {
+                    console.error(`Failed to unregister node ${change.id}:`, error);
+                  }
+                }
+              }
+              
+              // Dispatch CustomEvent for workflow validation (keep existing)
               const appContent = document.querySelector('[data-workflow-content]');
               if (appContent) {
                 appContent.dispatchEvent(new CustomEvent('nodesChanged', { detail: changes }));
@@ -622,8 +658,36 @@ export default function App() {
           }}
           onEdgesChange={(changes) => {
             // Let React Flow handle the changes first, then trigger our handlers
-            setTimeout(() => {
+            setTimeout(async () => {
               console.log("OnEdgeChange")
+              
+              // Handle edge removals in NodeDataManager
+              for (const change of changes) {
+                if (change.type === 'remove') {
+                  try {
+                    // We need to store edge data before removal since we can't access it after
+                    // For now, we'll extract the connection info from the change ID
+                    // This assumes edge IDs follow the pattern "source-target"
+                    const edgeId = change.id;
+                    const edgeParts = edgeId.split('-');
+                    if (edgeParts.length >= 2) {
+                      const source = edgeParts[0];
+                      const target = edgeParts[1];
+                      await nodeDataManager.removeConnection(
+                        source,
+                        target,
+                        'default',
+                        'default'
+                      );
+                      console.log(`Connection removed from NodeDataManager: ${source} -> ${target}`);
+                    }
+                  } catch (error) {
+                    console.error('Failed to remove connection from NodeDataManager:', error);
+                  }
+                }
+              }
+              
+              // Dispatch CustomEvent for workflow validation (keep existing)
               const appContent = document.querySelector('[data-workflow-content]');
               if (appContent) {
                 appContent.dispatchEvent(new CustomEvent('edgesChanged', { detail: changes }));
@@ -632,12 +696,29 @@ export default function App() {
           }}
           onConnect={(connection) => {
             // Let React Flow handle the connection first, then trigger our handlers
-            setTimeout(() => {
+            setTimeout(async () => {
               console.log("OnConnect")
+              
+              // Dispatch CustomEvent for workflow validation (keep existing)
               const appContent = document.querySelector('[data-workflow-content]');
               if (appContent) {
                 console.log("OnConnect dispatching Event")
                 appContent.dispatchEvent(new CustomEvent('connected', { detail: connection }));
+              }
+              
+              // NEW: Call NodeDataManager to update connections
+              try {
+                const edgeId = `${connection.source}-${connection.target}`;
+                await nodeDataManager.addConnection(
+                  connection.source,
+                  connection.target,
+                  connection.sourceHandle || 'default',
+                  connection.targetHandle || 'default',
+                  edgeId
+                );
+                console.log(`Connection added to NodeDataManager: ${connection.source} -> ${connection.target}`);
+              } catch (error) {
+                console.error('Failed to add connection to NodeDataManager:', error);
               }
             }, 0);
           }}
@@ -663,6 +744,9 @@ export default function App() {
           <Background variant={BackgroundVariant.Lines} gap={10} color="#f1f1f1" id="1"/>
           <Background variant={BackgroundVariant.Lines} gap={100} color="#ccc" id="2"/>
           <Controls />
+          
+          {/* Initialize NodeDataManager */}
+          <ReactFlowEventHandlers />
           
           <WorkflowProvider>
             <AppContent />
