@@ -186,7 +186,7 @@ export default function App() {
               position={PANEL_CONFIG.nodeTypes.position} 
               className={PANEL_CONFIG.nodeTypes.className}
             >
-              <div className='flex flex-col space-y-2 text-xs text-blue-900 font-thin'>
+              <div className='flex flex-col space-y-2 text-xs text-blue-700 font-medium'>
                 <div>Input Nodes</div>
                 <div>Process Nodes</div>
                 <div>Output Nodes</div>

@@ -190,7 +190,7 @@ export class NodeDataManager extends EventTarget {
    */
   async addConnection(sourceNodeId, targetNodeId, sourceHandle = 'default', targetHandle = 'default', edgeId) {
     const connectionId = `${sourceNodeId}-${targetNodeId}-${sourceHandle}-${targetHandle}`;
-    console.log("addConnection ",connectionId)
+    //console.log("addConnection ",connectionId)
     // Store connection info
     this.connections.set(connectionId, {
       id: connectionId,
@@ -224,7 +224,7 @@ export class NodeDataManager extends EventTarget {
     // Trigger processing of target node
     await this.processNode(targetNodeId);
 
-    console.log(`Connection added: ${sourceNodeId} -> ${targetNodeId}`);
+    //console.log(`Connection added: ${sourceNodeId} -> ${targetNodeId}`);
   }
 
   /**
@@ -259,7 +259,7 @@ export class NodeDataManager extends EventTarget {
       detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle }
     }));
 
-    console.log(`Connection removed: ${sourceNodeId} -> ${targetNodeId}`);
+    //console.log(`Connection removed: ${sourceNodeId} -> ${targetNodeId}`);
   }
 
   /**
@@ -279,7 +279,7 @@ export class NodeDataManager extends EventTarget {
       console.log(`Node ${nodeId} is already being processed`);
       return;
     }
-    console.log("processNode : Calling this._doProcessNode")
+    //console.log("processNode : Calling this._doProcessNode")
     const processingPromise = this._doProcessNode(nodeId, nodeData);
     this.processingQueue.set(nodeId, processingPromise);
 
@@ -316,7 +316,7 @@ export class NodeDataManager extends EventTarget {
           errors: []
         }
       });
-      console.log("_doProcessNode - emit: ",NodeDataEvents.NODE_PROCESSING)
+      //console.log("_doProcessNode - emit: ",NodeDataEvents.NODE_PROCESSING)
       // Emit processing started event
       this.dispatchEvent(new CustomEvent(NodeDataEvents.NODE_PROCESSING, {
         detail: { nodeId, nodeData }
@@ -391,7 +391,7 @@ export class NodeDataManager extends EventTarget {
    * @private
    */
   async _aggregateInputs(nodeId, nodeData) {
-    console.log("_aggregateInputs ",nodeId, nodeData);
+    //console.log("_aggregateInputs ",nodeId, nodeData);
     const aggregated = {};
     const connections = nodeData.input.connections || {};
 
@@ -424,7 +424,7 @@ export class NodeDataManager extends EventTarget {
         });
       }
     }
-    console.log("_aggregateInputs aggregated :", aggregated)
+    //console.log("_aggregateInputs aggregated :", aggregated)
     return aggregated;
   }
 

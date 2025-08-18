@@ -24,7 +24,7 @@ import {
  * @returns {Object} Form node configuration
  */
 export const createFormNode = () => ({
-  id: 'f1',
+  id: 'UserForm',
   position: { x: 50, y: 50 },
   data: InputNodeData.create({
     meta: {
@@ -66,7 +66,7 @@ export const createFormNode = () => ({
  * @returns {Object} Advanced form node configuration
  */
 export const createAdvancedFormNode = () => ({
-  id: 'f2',
+  id: 'FormAdvanced',
   position: { x: 50, y: 150 },
   data: InputNodeData.create({
     meta: {
@@ -118,7 +118,7 @@ export const createAdvancedFormNode = () => ({
  * @returns {Object} Prompt input node configuration
  */
 export const createPromptInputNode = () => ({
-  id: 'f3',
+  id: 'Prompt',
   position: { x: 50, y: 250 },
   data: InputNodeData.create({
     meta: {
@@ -154,7 +154,7 @@ export const createPromptInputNode = () => ({
  * @returns {Object} LLM process node configuration
  */
 export const createLLMProcessNode = () => ({
-  id: 'llm-1',
+  id: 'llm',
   position: { x: 100, y: 125 },
   data: ProcessNodeData.create({
     meta: {
@@ -190,7 +190,7 @@ export const createLLMProcessNode = () => ({
  * @returns {Object} API fetch node configuration
  */
 export const createAPIFetchNode = () => ({
-  id: 'fetch-1',
+  id: 'fetchAPI',
   position: { x: 400, y: 200 },
   data: ProcessNodeData.create({
     meta: {
@@ -226,7 +226,7 @@ export const createAPIFetchNode = () => ({
  * @returns {Object} Markdown display node configuration
  */
 export const createMarkdownDisplayNode = () => ({
-  id: 'md-1',
+  id: 'markDown',
   position: { x: 600, y: 50 },
   data: OutputNodeData.create({
     meta: {
@@ -258,7 +258,7 @@ export const createMarkdownDisplayNode = () => ({
  * @returns {Object} Template form node configuration
  */
 export const createTemplateFormNode = () => ({
-  id: 'template-1',
+  id: 'form',
   position: { x: 50, y: 350 },
   data: InputNodeData.create({
     meta: {

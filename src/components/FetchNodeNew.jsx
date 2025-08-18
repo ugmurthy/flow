@@ -66,7 +66,9 @@ function FetchNodeNew({ data, selected }) {
       }
 
       setNodeData(newNodeData);
-      setFetchResult(newNodeData.output.data.result);
+      const initialResult = newNodeData.output?.data?.result || null;
+      setFetchResult(initialResult);
+      console.log(`Node ${currentNodeId} initialized with result:`, !!initialResult);
 
       // Register with node data manager - use a wrapper to prevent infinite loops
       const safeUpdateNodeData = (nodeId, updates) => {
@@ -92,9 +94,21 @@ function FetchNodeNew({ data, selected }) {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === currentNodeId) {
         const updatedNodeData = event.detail.nodeData;
+        console.log(`[${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
+        console.log(`[${currentNodeId}] Updated node data:`, updatedNodeData);
+        
         setNodeData(updatedNodeData);
-        setProcessingStatus(updatedNodeData.output.meta.status);
-        setFetchResult(updatedNodeData.output.data.result);
+        
+        // Safely extract status and result
+        const newStatus = updatedNodeData.output?.meta?.status || 'idle';
+        const newResult = updatedNodeData.output?.data?.result || null;
+        
+        console.log(`[${currentNodeId}] Extracted from event - Status: ${newStatus}, Result:`, newResult);
+        
+        setProcessingStatus(newStatus);
+        setFetchResult(newResult);
+        
+        console.log(`[${currentNodeId}] Local state updated - Status: ${newStatus}, Has Result: ${!!newResult}`);
       }
     };
 
@@ -179,8 +193,12 @@ function FetchNodeNew({ data, selected }) {
         result = await response.text();
       }
 
+      console.log(`[${currentNodeId}] Fetch completed successfully. Result:`, result);
+      console.log(`[${currentNodeId}] Response status:`, response.status);
+      console.log(`[${currentNodeId}] Response time:`, responseTime);
+      
       // Update node data with successful result
-      await nodeDataManager.updateNodeData(currentNodeId, {
+      const updateData = {
         output: {
           data: {
             result,
@@ -197,7 +215,43 @@ function FetchNodeNew({ data, selected }) {
             dataSize: JSON.stringify(result).length
           }
         }
-      }, true); // Trigger processing of connected nodes
+      };
+      
+      console.log(`[${currentNodeId}] About to update nodeDataManager with:`, updateData);
+      await nodeDataManager.updateNodeData(currentNodeId, updateData, true);
+      console.log(`[${currentNodeId}] NodeDataManager update completed`);
+      
+      // Also update local state directly as a fallback
+      setFetchResult(result);
+      console.log(`[${currentNodeId}] Local fetchResult state updated directly`);
+      
+      // Force a re-render by updating the nodeData state directly
+      setNodeData(prevNodeData => {
+        const updatedNodeData = {
+          ...prevNodeData,
+          output: {
+            ...prevNodeData.output,
+            data: {
+              ...prevNodeData.output.data,
+              result,
+              status: 'success',
+              error: null,
+              responseTime,
+              statusCode: response.status,
+              headers: Object.fromEntries(response.headers.entries())
+            },
+            meta: {
+              ...prevNodeData.output.meta,
+              status: 'success',
+              timestamp: new Date().toISOString(),
+              processingTime: responseTime,
+              dataSize: JSON.stringify(result).length
+            }
+          }
+        };
+        console.log(`[${currentNodeId}] Local nodeData state updated directly:`, updatedNodeData);
+        return updatedNodeData;
+      });
 
     } catch (error) {
       const responseTime = Date.now() - startTime;
@@ -239,16 +293,18 @@ function FetchNodeNew({ data, selected }) {
   // Auto-fetch when node is initialized or input changes
   useEffect(() => {
     if (nodeData && nodeData.input.config.url) {
-      // Only auto-fetch if there are processed inputs AND we haven't already fetched successfully
       const hasProcessedInputs = Object.keys(nodeData.input.processed || {}).length > 0;
       const hasNotFetchedYet = !nodeData.output.data.result && processingStatus === 'idle';
       const shouldAutoFetch = nodeData.input.config.autoFetch !== false;
+      const isStandaloneNode = Object.keys(nodeData.input.connections || {}).length === 0;
       
-      if (hasProcessedInputs && hasNotFetchedYet && shouldAutoFetch) {
+      // Allow auto-fetch for standalone nodes OR nodes with processed inputs
+      if ((hasProcessedInputs || isStandaloneNode) && hasNotFetchedYet && shouldAutoFetch) {
+        console.log(`Auto-fetching for node ${currentNodeId} - Standalone: ${isStandaloneNode}, HasInputs: ${hasProcessedInputs}`);
         performFetch();
       }
     }
-  }, [nodeData?.input.processed, nodeData?.input.config.url, performFetch]);
+  }, [nodeData?.input.processed, nodeData?.input.config.url, nodeData?.input.connections, performFetch]);
 
   // Get status color based on processing status
   const getStatusColor = () => {
@@ -359,17 +415,29 @@ function FetchNodeNew({ data, selected }) {
         </div>
 
         {/* Result Display */}
-        {fetchResult && (
+        {(fetchResult || nodeData.output.data.result) && (
           <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-xs">
             <div className="font-medium text-green-800">Response:</div>
             <div className="text-green-600 mt-1 max-h-20 overflow-y-auto">
               <pre className="whitespace-pre-wrap">
-                {typeof fetchResult === 'string' 
-                  ? fetchResult.substring(0, 200) + (fetchResult.length > 200 ? '...' : '')
-                  : JSON.stringify(fetchResult, null, 2).substring(0, 200) + '...'
-                }
+                {(() => {
+                  const result = fetchResult || nodeData.output.data.result;
+                  return typeof result === 'string'
+                    ? result.substring(0, 200) + (result.length > 200 ? '...' : '')
+                    : JSON.stringify(result, null, 2).substring(0, 200) + '...';
+                })()}
               </pre>
             </div>
+          </div>
+        )}
+
+        {/* Debug Info - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-2 p-1 bg-gray-100 border rounded text-xs">
+            <div>Debug: fetchResult={!!fetchResult}, nodeData.result={!!nodeData.output.data.result}</div>
+            <div>fetchResult type: {typeof fetchResult}, value: {fetchResult ? JSON.stringify(fetchResult).substring(0, 50) + '...' : 'null'}</div>
+            <div>nodeData.result type: {typeof nodeData.output.data.result}, value: {nodeData.output.data.result ? JSON.stringify(nodeData.output.data.result).substring(0, 50) + '...' : 'null'}</div>
+            <div>processingStatus: {processingStatus}</div>
           </div>
         )}
 
