@@ -30,7 +30,19 @@ export class NodeDataManager extends EventTarget {
     this.connections = new Map(); // connectionId -> connection info
     this.processingQueue = new Map(); // nodeId -> processing promise
     this.updateCallbacks = new Map(); // nodeId -> callback function
+    this.reactFlowCallbacks = null; // React Flow integration callbacks
     this.initialized = false;
+  }
+
+  /**
+   * Set React Flow integration callbacks for edge management
+   * @param {Object} callbacks - React Flow callbacks
+   * @param {Function} callbacks.removeEdge - Function to remove edge from React Flow
+   * @param {Function} callbacks.addEdge - Function to add edge to React Flow
+   */
+  setReactFlowCallbacks(callbacks) {
+    this.reactFlowCallbacks = callbacks;
+    console.log('React Flow callbacks registered with NodeDataManager');
   }
 
   /**
@@ -190,8 +202,50 @@ export class NodeDataManager extends EventTarget {
    */
   async addConnection(sourceNodeId, targetNodeId, sourceHandle = 'default', targetHandle = 'default', edgeId) {
     const connectionId = `${sourceNodeId}-${targetNodeId}-${sourceHandle}-${targetHandle}`;
-    //console.log("addConnection ",connectionId)
-    // Store connection info
+    console.log("addConnection", connectionId);
+    
+    // Get target node data to check connection policy
+    const targetData = this.nodes.get(targetNodeId);
+    if (!targetData) {
+      console.error(`Target node ${targetNodeId} not found`);
+      return;
+    }
+
+    // Check if multiple connections are allowed
+    const allowMultipleConnections = targetData.input?.config?.allowMultipleConnections || false;
+    
+    // If single connection mode and target already has connections, remove old ones
+    if (!allowMultipleConnections && targetData.input?.connections) {
+      const existingConnections = Object.keys(targetData.input.connections);
+      if (existingConnections.length > 0) {
+        console.log(`Single connection mode: removing ${existingConnections.length} existing connections`);
+        
+        // Remove old connections and their React Flow edges
+        for (const oldConnectionId of existingConnections) {
+          const oldConnection = this.connections.get(oldConnectionId);
+          if (oldConnection) {
+            // Remove React Flow edge if callback is available
+            if (this.reactFlowCallbacks?.removeEdge && oldConnection.edgeId) {
+              this.reactFlowCallbacks.removeEdge(oldConnection.edgeId);
+              console.log(`Removed React Flow edge: ${oldConnection.edgeId}`);
+            }
+            
+            // Remove from connections map
+            this.connections.delete(oldConnectionId);
+          }
+        }
+        
+        // Clear all connections from target node (single connection mode only)
+        await this.updateNodeData(targetNodeId, {
+          input: {
+            connections: {},
+            processed: {} // Clear processed data when connections change
+          }
+        });
+      }
+    }
+
+    // Store new connection info
     this.connections.set(connectionId, {
       id: connectionId,
       edgeId,
@@ -202,11 +256,25 @@ export class NodeDataManager extends EventTarget {
       createdAt: new Date().toISOString()
     });
 
-    // Update target node's input connections
-    const targetData = this.nodes.get(targetNodeId);
-    if (targetData) {
-      const connectionData = ConnectionData.create(sourceNodeId, sourceHandle, targetHandle);
+    // Create connection data and update target node
+    const connectionData = ConnectionData.create(sourceNodeId, sourceHandle, targetHandle);
+    
+    // Update target node with new connection
+    if (allowMultipleConnections) {
+      // For multiple connections, add to existing connections using merge behavior
+      const currentTargetData = this.nodes.get(targetNodeId);
+      const existingConnections = currentTargetData.input.connections || {};
       
+      await this.updateNodeData(targetNodeId, {
+        input: {
+          connections: {
+            ...existingConnections,
+            [connectionId]: connectionData
+          }
+        }
+      });
+    } else {
+      // For single connections, connections were already cleared above, so set the new one
       await this.updateNodeData(targetNodeId, {
         input: {
           connections: {
@@ -218,13 +286,13 @@ export class NodeDataManager extends EventTarget {
 
     // Emit connection event
     this.dispatchEvent(new CustomEvent(NodeDataEvents.CONNECTION_ADDED, {
-      detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle }
+      detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle, replaced: !allowMultipleConnections }
     }));
 
     // Trigger processing of target node
     await this.processNode(targetNodeId);
 
-    //console.log(`Connection added: ${sourceNodeId} -> ${targetNodeId}`);
+    console.log(`Connection added: ${sourceNodeId} -> ${targetNodeId} (multiple: ${allowMultipleConnections})`);
   }
 
   /**
@@ -236,13 +304,17 @@ export class NodeDataManager extends EventTarget {
    */
   async removeConnection(sourceNodeId, targetNodeId, sourceHandle = 'default', targetHandle = 'default') {
     const connectionId = `${sourceNodeId}-${targetNodeId}-${sourceHandle}-${targetHandle}`;
+    console.log("removeConnection", connectionId);
     
-    // Remove connection
+    // Get connection info before removing
+    const connectionInfo = this.connections.get(connectionId);
+    
+    // Remove connection from connections map
     this.connections.delete(connectionId);
 
     // Update target node's input connections
     const targetData = this.nodes.get(targetNodeId);
-    if (targetData) {
+    if (targetData && targetData.input?.connections) {
       const updatedConnections = { ...targetData.input.connections };
       delete updatedConnections[connectionId];
       
@@ -252,14 +324,61 @@ export class NodeDataManager extends EventTarget {
           processed: {} // Clear processed data when connection is removed
         }
       });
+      
+      console.log(`Removed connection ${connectionId} from target node ${targetNodeId}`);
     }
 
     // Emit connection removed event
     this.dispatchEvent(new CustomEvent(NodeDataEvents.CONNECTION_REMOVED, {
-      detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle }
+      detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle, connectionInfo }
     }));
 
-    //console.log(`Connection removed: ${sourceNodeId} -> ${targetNodeId}`);
+    console.log(`Connection removed: ${sourceNodeId} -> ${targetNodeId}`);
+  }
+
+  /**
+   * Remove connection by edge ID (for React Flow integration)
+   * @param {string} edgeId - React Flow edge ID
+   */
+  async removeConnectionByEdgeId(reactFlowEdgeId) {
+    console.log("removeConnectionByEdgeId", reactFlowEdgeId);
+    const REACT_FLOW_EDGE_PREFIX = "xy-edge__";
+    const edgeId = reactFlowEdgeId.split(REACT_FLOW_EDGE_PREFIX)[1];
+    console.log("removeConnectionByEdgeId", reactFlowEdgeId,'->',edgeId);
+    // Find connection by edge ID
+    let connectionToRemove = null;
+    for (const [connectionId, connection] of this.connections) {
+      if (connection.edgeId === edgeId) {
+        connectionToRemove = { connectionId, ...connection };
+        break;
+      }
+    }
+    
+    if (connectionToRemove) {
+      await this.removeConnection(
+        connectionToRemove.sourceNodeId,
+        connectionToRemove.targetNodeId,
+        connectionToRemove.sourceHandle,
+        connectionToRemove.targetHandle
+      );
+      console.log(`Connection removed by edge ID: ${edgeId}`);
+    } else {
+      console.warn(`No connection found for edge ID: ${edgeId}`);
+    }
+  }
+
+  /**
+   * Find connection by edge ID
+   * @param {string} edgeId - React Flow edge ID
+   * @returns {Object|null} Connection info or null if not found
+   */
+  findConnectionByEdgeId(edgeId) {
+    for (const [connectionId, connection] of this.connections) {
+      if (connection.edgeId === edgeId) {
+        return { connectionId, ...connection };
+      }
+    }
+    return null;
   }
 
   /**
@@ -394,6 +513,7 @@ export class NodeDataManager extends EventTarget {
     //console.log("_aggregateInputs ",nodeId, nodeData);
     const aggregated = {};
     const connections = nodeData.input.connections || {};
+    const updatedConnections = {};
 
     for (const [connectionId, connection] of Object.entries(connections)) {
       const sourceNodeData = this.nodes.get(connection.sourceNodeId);
@@ -403,7 +523,7 @@ export class NodeDataManager extends EventTarget {
         aggregated[sourceLabel] = sourceNodeData.output.data;
         
         // Update connection with latest data
-        const updatedConnection = {
+        updatedConnections[connectionId] = {
           ...connection,
           data: sourceNodeData.output.data,
           meta: {
@@ -413,17 +533,21 @@ export class NodeDataManager extends EventTarget {
             isActive: true
           }
         };
-
-        // Update the connection in node data
-        await this.updateNodeData(nodeId, {
-          input: {
-            connections: {
-              [connectionId]: updatedConnection
-            }
-          }
-        });
+      } else {
+        // Keep existing connection even if source data is not available
+        updatedConnections[connectionId] = connection;
       }
     }
+
+    // Update all connections at once to avoid overwriting
+    if (Object.keys(updatedConnections).length > 0) {
+      await this.updateNodeData(nodeId, {
+        input: {
+          connections: updatedConnections
+        }
+      });
+    }
+
     //console.log("_aggregateInputs aggregated :", aggregated)
     return aggregated;
   }
@@ -648,13 +772,8 @@ export const ReactFlowIntegration = {
             case 'select':
               return { ...edge, selected: change.selected };
             case 'remove':
-              // Remove connection from manager
-              nodeDataManager.removeConnection(
-                edge.source,
-                edge.target,
-                edge.sourceHandle,
-                edge.targetHandle
-              );
+              // Remove connection from manager using edge ID
+              nodeDataManager.removeConnectionByEdgeId(edge.id);
               return null;
             default:
               return edge;
@@ -672,7 +791,20 @@ export const ReactFlowIntegration = {
    */
   handleConnect: (connection, setEdges) => {
     const edgeId = `${connection.source}-${connection.target}`;
-    console.log("handleConnet edgeId ",edgeId)
+    console.log("handleConnect edgeId", edgeId);
+    
+    // Register React Flow callbacks for edge management
+    if (!nodeDataManager.reactFlowCallbacks) {
+      nodeDataManager.setReactFlowCallbacks({
+        removeEdge: (edgeIdToRemove) => {
+          setEdges(edges => edges.filter(edge => edge.id !== edgeIdToRemove));
+        },
+        addEdge: (newEdge) => {
+          setEdges(edges => [...edges, newEdge]);
+        }
+      });
+    }
+    
     // Add to React Flow
     setEdges(edges => [
       ...edges,
@@ -685,7 +817,7 @@ export const ReactFlowIntegration = {
       }
     ]);
 
-    // Add to manager
+    // Add to manager (this will handle connection replacement if needed)
     nodeDataManager.addConnection(
       connection.source,
       connection.target,

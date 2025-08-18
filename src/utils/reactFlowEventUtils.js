@@ -39,24 +39,9 @@ export const processEdgeChanges = async (changes) => {
   for (const change of changes) {
     if (change.type === 'remove') {
       try {
-        // Extract connection info from edge ID
-        // This assumes edge IDs follow the pattern "source-target"
-        const edgeId = change.id;
-        const edgeParts = edgeId.split('-');
-        
-        if (edgeParts.length >= 2) {
-          const source = edgeParts[0];
-          const target = edgeParts[1];
-          
-          await nodeDataManager.removeConnection(
-            source,
-            target,
-            'default',
-            'default'
-          );
-          
-          console.log(`Connection removed from NodeDataManager: ${source} -> ${target}`);
-        }
+        // Use the new removeConnectionByEdgeId method for proper cleanup
+        await nodeDataManager.removeConnectionByEdgeId(change.id);
+        console.log(`Connection removed from NodeDataManager by edge ID: ${change.id}`);
       } catch (error) {
         console.error('Failed to remove connection from NodeDataManager:', error);
       }
@@ -183,11 +168,12 @@ export const extractConnectionFromEdgeId = (edgeId) => {
   const edgeParts = edgeId.split('-');
   
   if (edgeParts.length >= 2) {
+    // Handle both simple "source-target" and full "source-target-sourceHandle-targetHandle" formats
     return {
       source: edgeParts[0],
       target: edgeParts[1],
-      sourceHandle: 'default',
-      targetHandle: 'default'
+      sourceHandle: edgeParts[2] || 'default',
+      targetHandle: edgeParts[3] || 'default'
     };
   }
   
@@ -197,12 +183,14 @@ export const extractConnectionFromEdgeId = (edgeId) => {
 /**
  * Validates connection before processing
  * @param {Object} connection - Connection object to validate
+ * @param {Object} targetNodeData - Target node data for validation
  * @returns {Object} Validation result
  */
-export const validateConnection = (connection) => {
+export const validateConnection = (connection, targetNodeData = null) => {
   const validation = {
     valid: true,
-    errors: []
+    errors: [],
+    warnings: []
   };
 
   if (!connection.source) {
@@ -220,7 +208,50 @@ export const validateConnection = (connection) => {
     validation.errors.push('Cannot connect node to itself');
   }
 
+  // Check multiple connection policy if target node data is available
+  if (targetNodeData && targetNodeData.input?.connections) {
+    const allowMultipleConnections = targetNodeData.input?.config?.allowMultipleConnections || false;
+    const existingConnections = Object.keys(targetNodeData.input.connections);
+    
+    if (!allowMultipleConnections && existingConnections.length > 0) {
+      validation.warnings.push(`Target node allows only single connection. Existing connection will be replaced.`);
+    }
+  }
+
   return validation;
+};
+
+/**
+ * Enhanced connection processing with validation
+ * @param {Object} connection - ReactFlow connection object
+ * @param {Object} targetNodeData - Target node data for validation
+ * @returns {Promise<Object>} Processing result
+ */
+export const processConnectionWithValidation = async (connection, targetNodeData = null) => {
+  console.log("Processing connection with validation:", connection);
+  
+  // Validate connection
+  const validation = validateConnection(connection, targetNodeData);
+  
+  if (!validation.valid) {
+    const error = new Error(`Connection validation failed: ${validation.errors.join(', ')}`);
+    console.error(error.message);
+    throw error;
+  }
+  
+  // Log warnings
+  if (validation.warnings.length > 0) {
+    console.warn('Connection warnings:', validation.warnings);
+  }
+  
+  // Process the connection
+  await processNewConnection(connection);
+  
+  return {
+    success: true,
+    validation,
+    connection
+  };
 };
 
 /**

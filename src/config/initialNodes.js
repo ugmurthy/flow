@@ -237,9 +237,11 @@ export const createMarkdownDisplayNode = () => ({
     },
     input: {
       config: {
+        allowMultipleConnections:true,
         displayFormat: DEFAULT_FORM_CONFIGS.displayFormat,
         autoUpdate: DEFAULT_FORM_CONFIGS.autoUpdate,
-        styleConfig: DEFAULT_STYLE_CONFIG
+        styleConfig: DEFAULT_STYLE_CONFIG,
+        
       }
     },
     output: {

@@ -40,8 +40,8 @@ describe('NodeDataManager Integration Tests', () => {
       // Arrange
       const connectionAddedSpy = vi.fn();
       nodeDataManager.addEventListener(NodeDataEvents.CONNECTION_ADDED, connectionAddedSpy);
-
       // Act
+      
       await nodeDataManager.addConnection(
         mockConnection.source,
         mockConnection.target,
@@ -49,7 +49,15 @@ describe('NodeDataManager Integration Tests', () => {
         mockConnection.targetHandle,
         `${mockConnection.source}-${mockConnection.target}`
       );
-
+       
+      
+	  
+      
+      // wait for atleast one spy call
+      await vi.waitFor(() => {
+  			// this will keep running until the spy has at least one call
+  			expect(connectionAddedSpy).toHaveBeenCalled();
+		});
       // Assert
       expect(connectionAddedSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -61,6 +69,7 @@ describe('NodeDataManager Integration Tests', () => {
           })
         })
       );
+      
 
       // Cleanup
       nodeDataManager.removeEventListener(NodeDataEvents.CONNECTION_ADDED, connectionAddedSpy);
