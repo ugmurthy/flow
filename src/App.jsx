@@ -27,6 +27,7 @@ import ConfirmationDialog from './components/ConfirmationDialog.jsx';
 import { ModalProvider } from './contexts/ModalContext.jsx';
 import { WorkflowProvider } from './contexts/WorkflowContext.jsx';
 import { GlobalProvider } from './contexts/GlobalContext.jsx';
+import { FlowStateProvider } from './contexts/FlowStateContext.jsx';
 
 // Hook imports
 import { useWorkflowOperations, useWorkflowLoading } from './hooks/useWorkflowOperations.js';
@@ -34,6 +35,7 @@ import { useModalManagement } from './hooks/useModalManagement.js';
 
 // Utility imports
 import { createNodeChangeHandler, createEdgeChangeHandler, createConnectionHandler } from './utils/reactFlowEventUtils.js';
+import { IntegrationUtils, createEnhancedNodeChangeHandler, createEnhancedEdgeChangeHandler, createEnhancedConnectionHandler } from './services/flowStateIntegration.js';
 
 // Initialize schema system on app load
 initializeSchemaSystem();
@@ -123,21 +125,24 @@ function AppContent() {
 
 /**
  * ReactFlow Event Handlers Component
- * Handles NodeDataManager initialization
+ * Handles NodeDataManager and FlowState integration initialization
  */
 function ReactFlowEventHandlers() {
-  // Initialize NodeDataManager
+  // Initialize NodeDataManager and FlowState integration
   useEffect(() => {
-    const initializeNodeDataManager = async () => {
+    const initializeIntegration = async () => {
       try {
         await nodeDataManager.initialize();
         console.log('NodeDataManager initialized in ReactFlow component');
+        
+        // Note: FlowStateContext integration will be initialized when the context is available
+        console.log('Integration system ready for FlowStateContext connection');
       } catch (error) {
-        console.error('Failed to initialize NodeDataManager:', error);
+        console.error('Failed to initialize integration systems:', error);
       }
     };
     
-    initializeNodeDataManager();
+    initializeIntegration();
   }, []);
 
   return null; // This component only handles side effects
@@ -150,20 +155,21 @@ function ReactFlowEventHandlers() {
 export default function App() {
   return (
     <GlobalProvider>
-      <ModalProvider>
-        <div style={reactFlowStyle}>
+      <FlowStateProvider>
+        <ModalProvider>
+          <div style={reactFlowStyle}>
           <ReactFlow
             defaultNodes={initialNodes}
             defaultEdges={initialEdges}
-            onNodesChange={createNodeChangeHandler(
+            onNodesChange={createEnhancedNodeChangeHandler(
               () => {}, // markUnsavedChanges - will be handled by workflow operations hook
               () => {}  // updateWorkflowValidity - will be handled by workflow operations hook
             )}
-            onEdgesChange={createEdgeChangeHandler(
+            onEdgesChange={createEnhancedEdgeChangeHandler(
               () => {}, // markUnsavedChanges - will be handled by workflow operations hook
               () => {}  // updateWorkflowValidity - will be handled by workflow operations hook
             )}
-            onConnect={createConnectionHandler(
+            onConnect={createEnhancedConnectionHandler(
               () => {}, // markUnsavedChanges - will be handled by workflow operations hook
               () => {}  // updateWorkflowValidity - will be handled by workflow operations hook
             )}
@@ -219,6 +225,7 @@ export default function App() {
           </ReactFlow>
         </div>
       </ModalProvider>
+      </FlowStateProvider>
     </GlobalProvider>
   );
 }

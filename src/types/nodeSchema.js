@@ -12,20 +12,24 @@ export const ConnectionData = {
    * @param {string} sourceHandle - Handle ID on source node
    * @param {string} targetHandle - Handle ID on target node
    * @param {any} data - Data received from connection
+   * @param {any} processed - Processed data from source node
    * @param {Object} meta - Connection metadata
    * @param {string} meta.timestamp - When connection was established
    * @param {string} meta.dataType - Type of data being transmitted
    * @param {boolean} meta.isActive - Whether connection is active
+   * @param {string} meta.lastProcessed - When data was last processed
    */
-  create: (sourceNodeId, sourceHandle = 'default', targetHandle = 'default', data = null) => ({
+  create: (sourceNodeId, sourceHandle = 'default', targetHandle = 'default', data = null, processed = null) => ({
     sourceNodeId,
     sourceHandle,
     targetHandle,
     data,
+    processed, // NEW: Processed data from source node
     meta: {
       timestamp: new Date().toISOString(),
       dataType: typeof data,
-      isActive: true
+      isActive: true,
+      lastProcessed: processed ? new Date().toISOString() : null // NEW: Track when data was processed
     }
   })
 };

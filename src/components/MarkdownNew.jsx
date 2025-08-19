@@ -7,6 +7,8 @@ import React, { memo, useEffect, useState, useCallback } from 'react';
 import { Handle, Position, useNodeId, useReactFlow } from '@xyflow/react';
 import { OutputNodeData } from '../types/nodeSchema.js';
 import nodeDataManager, { NodeDataEvents } from '../services/nodeDataManager.js';
+import { useFlowState, useFlowStateNode, useFlowStateProcessing } from '../contexts/FlowStateContext.jsx';
+import { performanceMonitor } from '../utils/performanceMonitor.js';
 import MarkdownRenderer from './MarkdownRenderer';
 import ViewButton from '../components/ViewButton';
 import ButtonPanel from './ButtonPanel';
@@ -14,64 +16,95 @@ import ButtonPanel from './ButtonPanel';
 function MarkdownNew({ data, selected }) {
   const { updateNodeData } = useReactFlow();
   const currentNodeId = useNodeId();
-  const [nodeData, setNodeData] = useState(null);
-  const [processingStatus, setProcessingStatus] = useState('idle');
+  
+  // Use FlowState hooks for optimized subscriptions
+  const flowState = useFlowState();
+  const nodeData = useFlowStateNode(currentNodeId);
+  const processingNodes = useFlowStateProcessing();
+  
+  // Local state for UI-specific data
+  const [localProcessingStatus, setLocalProcessingStatus] = useState('idle');
   const [renderedContent, setRenderedContent] = useState('');
+
+  // Derived state
+  const isProcessing = processingNodes.has(currentNodeId);
+  const processingStatus = isProcessing ? 'processing' :
+    (nodeData?.output?.meta?.status || localProcessingStatus);
 
   // Initialize node with new schema
   useEffect(() => {
     const initializeNode = async () => {
-      // Ensure node data manager is initialized
-      await nodeDataManager.initialize();
+      const measurement = performanceMonitor.startMeasurement('nodeInitialization');
+      
+      try {
+        // Ensure node data manager is initialized
+        await nodeDataManager.initialize();
 
-      // Convert old data format to new schema if needed
-      let newNodeData;
-      if (data.meta && data.input && data.output && data.error) {
-        // Already in new format
-        newNodeData = data;
-      } else {
-        // Convert from old format
-        newNodeData = OutputNodeData.create({
-          meta: {
-            label: data.label || 'Markdown Display',
-            function: data.function || 'Renderer',
-            emoji: data.emoji || '📝',
-            description: 'Renders markdown content with syntax highlighting'
-          },
-          input: {
-            config: {
-              displayFormat: 'markdown',
-              autoUpdate: true,
-              styleConfig: data.styleConfig || {
-                width: 'auto',
-                textColor: '#374151',
-                fontSize: '14px'
+        // Convert old data format to new schema if needed
+        let newNodeData;
+        if (data.meta && data.input && data.output && data.error) {
+          // Already in new format
+          newNodeData = data;
+        } else {
+          // Convert from old format
+          newNodeData = OutputNodeData.create({
+            meta: {
+              label: data.label || 'Markdown Display',
+              function: data.function || 'Renderer',
+              emoji: data.emoji || '📝',
+              description: 'Renders markdown content with syntax highlighting'
+            },
+            input: {
+              config: {
+                displayFormat: 'markdown',
+                autoUpdate: true,
+                styleConfig: data.styleConfig || {
+                  width: 'auto',
+                  textColor: '#374151',
+                  fontSize: '14px'
+                }
+              }
+            },
+            output: {
+              data: {
+                content: data.content || '',
+                renderedHtml: '',
+                wordCount: 0,
+                lastUpdated: new Date().toISOString()
               }
             }
-          },
-          output: {
-            data: {
-              content: data.content || '',
-              renderedHtml: '',
-              wordCount: 0,
-              lastUpdated: new Date().toISOString()
-            }
-          }
-        });
-      }
-
-      setNodeData(newNodeData);
-      setRenderedContent(newNodeData.output.data.content || '');
-
-      // Register with node data manager - use a wrapper to prevent infinite loops
-      const safeUpdateNodeData = (nodeId, updates) => {
-        // Only update React Flow if the update is not coming from our own component
-        if (nodeId === currentNodeId && updates.data) {
-          updateNodeData(nodeId, updates);
+          });
         }
-      };
-      
-      nodeDataManager.registerNode(currentNodeId, newNodeData, safeUpdateNodeData);
+
+        // Update FlowState with new node data
+        flowState.updateNode(currentNodeId, {
+          id: currentNodeId,
+          type: 'markdownNew',
+          position: { x: 0, y: 0 }, // Will be updated by React Flow
+          data: newNodeData,
+        });
+
+        // Initialize local state
+        setRenderedContent(newNodeData.output.data.content || '');
+        setLocalProcessingStatus(newNodeData.output?.meta?.status || 'idle');
+
+        console.log(`[Markdown Node] Node ${currentNodeId} initialized with FlowState integration`);
+
+        // Register with node data manager with optimized callback
+        const safeUpdateNodeData = (updateNodeId, updates) => {
+          // Only update React Flow if the update is not coming from our own component
+          if (updateNodeId === currentNodeId && updates.data) {
+            updateNodeData(updateNodeId, updates);
+          }
+        };
+        
+        nodeDataManager.registerNode(currentNodeId, newNodeData, safeUpdateNodeData);
+        
+        performanceMonitor.endMeasurement(measurement);
+      } catch (error) {
+        performanceMonitor.endMeasurement(measurement);
+        console.error('Error initializing markdown node:', error);
+      }
     };
 
     initializeNode();
@@ -86,28 +119,33 @@ function MarkdownNew({ data, selected }) {
   const updateRenderedContent = useCallback(async (updatedNodeData, skipNodeDataUpdate = false) => {
     let content = updatedNodeData.output.data.content || '';
     
-    // If we have processed input data, combine it with existing content
-    const processedInputs = updatedNodeData.input.processed || {};
-    if (Object.keys(processedInputs).length > 0) {
-      // Combine input data into markdown content
-      const inputContent = Object.entries(processedInputs)
-        .map(([source, data]) => {
+    // If we have processed input data from connections, combine it with existing content
+    const connections = updatedNodeData.input.connections || {};
+    const processedConnections = Object.values(connections).filter(conn => conn.processed);
+    
+    if (processedConnections.length > 0) {
+      // Combine input data from connections into markdown content
+      const inputContent = processedConnections
+        .map((connection) => {
+          const data = connection.processed;
+          const sourceId = connection.sourceNodeId;
+          
           if (typeof data === 'string') {
-            return data;
+            return `## From ${sourceId}\n\n${data}`;
           } else if (typeof data === 'object') {
             // Look for text-like fields
             const textFields = ['content', 'text', 'message', 'response', 'result'];
             for (const field of textFields) {
               if (data[field] && typeof data[field] === 'string') {
-                return data[field];
+                return `## From ${sourceId}\n\n${data[field]}`;
               }
             }
             // Fallback to JSON representation
-            return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+            return `## From ${sourceId}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
           }
-          return String(data);
+          return `## From ${sourceId}\n\n${String(data)}`;
         })
-        .join('\n\n');
+        .join('\n\n---\n\n');
       
       content = inputContent || content;
     }
@@ -140,38 +178,46 @@ function MarkdownNew({ data, selected }) {
         }
       };
       
-      // Update the node data in the manager without triggering React Flow callback
+      // Update the node data in the manager
+      // FlowStateContext will be automatically synced via NodeDataManager
       nodeDataManager.nodes.set(currentNodeId, updatedData);
-      setNodeData(updatedData);
     }
   }, [currentNodeId]);
 
-  // Listen to node data events
+  // Listen to node data events (optimized)
   useEffect(() => {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === currentNodeId) {
         const updatedNodeData = event.detail.nodeData;
-        setNodeData(updatedNodeData);
-        setProcessingStatus(updatedNodeData.output.meta.status);
+        console.log(`[Markdown Node][${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
+        
+        // Update local state for immediate UI feedback
+        const newStatus = updatedNodeData.output?.meta?.status || 'idle';
+        setLocalProcessingStatus(newStatus);
         
         // Update rendered content when input data changes, but skip node data update to prevent recursion
         updateRenderedContent(updatedNodeData, true);
+        
+        console.log(`[Markdown Node][${currentNodeId}] Local state updated - Status: ${newStatus}`);
       }
     };
 
     const handleNodeProcessing = (event) => {
       if (event.detail.nodeId === currentNodeId) {
-        setProcessingStatus('processing');
+        setLocalProcessingStatus('processing');
+        console.log(`[Markdown Node][${currentNodeId}] Processing started`);
       }
     };
 
     const handleNodeProcessed = (event) => {
       if (event.detail.nodeId === currentNodeId) {
-        setProcessingStatus(event.detail.success ? 'success' : 'error');
+        const newStatus = event.detail.success ? 'success' : 'error';
+        setLocalProcessingStatus(newStatus);
+        console.log(`[Markdown Node][${currentNodeId}] Processing completed - Status: ${newStatus}`);
       }
     };
 
-    // Add event listeners
+    // Add event listeners (reduced to essential events)
     nodeDataManager.addEventListener(NodeDataEvents.NODE_DATA_UPDATED, handleNodeDataUpdate);
     nodeDataManager.addEventListener(NodeDataEvents.NODE_PROCESSING, handleNodeProcessing);
     nodeDataManager.addEventListener(NodeDataEvents.NODE_PROCESSED, handleNodeProcessed);
@@ -208,7 +254,7 @@ function MarkdownNew({ data, selected }) {
   }
 
   const styleConfig = nodeData.input.config.styleConfig || {};
-
+  console.log(`[MarkDown] Rendered. id: '${currentNodeId}' nodeData:`, nodeData);
   return (
     <div className="group relative">
       {/* Hover Buttons */}
@@ -273,15 +319,30 @@ function MarkdownNew({ data, selected }) {
           </div>
         )}
 
-        {/* Input Summary */}
-        {Object.keys(nodeData.input.processed || {}).length > 0 && (
-          <div className="mx-4 mb-4 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-            <div className="font-medium text-blue-800">Connected Inputs:</div>
-            <div className="text-blue-600 mt-1">
-              {Object.keys(nodeData.input.processed).length} source(s) providing content
+        {/* Input Summary - Using connection-level processed data */}
+        {(() => {
+          const connections = nodeData.input.connections || {};
+          const processedConnections = Object.values(connections).filter(conn => conn.processed);
+          return processedConnections.length > 0 && (
+            <div className="mx-4 mb-4 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+              <div className="font-medium text-blue-800">Connected Inputs:</div>
+              <div className="text-blue-600 mt-1">
+                {processedConnections.length} source(s) providing content
+              </div>
+              {/* Show individual connection details */}
+              {processedConnections.map((connection, index) => (
+                <div key={index} className="text-blue-500 mt-1 text-xs">
+                  • {connection.sourceNodeId}
+                  {connection.meta?.lastProcessed && (
+                    <span className="text-gray-500 ml-1">
+                      ({new Date(connection.meta.lastProcessed).toLocaleTimeString()})
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* React Flow Handle */}
         <Handle

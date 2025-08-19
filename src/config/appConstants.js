@@ -41,7 +41,7 @@ export const DEFAULT_LLM_CONFIG = {
 // API configuration
 export const API_CONFIG = {
   defaultTimeout: 30000,
-  defaultUrl: 'https://jsonplaceholder.typicode.com/posts/1',
+  defaultUrl: 'https://jsonplaceholder.typicode.com/posts',
   defaultMethod: 'GET'
 };
 

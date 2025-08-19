@@ -31,6 +31,7 @@ export class NodeDataManager extends EventTarget {
     this.processingQueue = new Map(); // nodeId -> processing promise
     this.updateCallbacks = new Map(); // nodeId -> callback function
     this.reactFlowCallbacks = null; // React Flow integration callbacks
+    this.flowStateContext = null; // FlowStateContext integration
     this.initialized = false;
   }
 
@@ -43,6 +44,15 @@ export class NodeDataManager extends EventTarget {
   setReactFlowCallbacks(callbacks) {
     this.reactFlowCallbacks = callbacks;
     console.log('React Flow callbacks registered with NodeDataManager');
+  }
+
+  /**
+   * Set FlowStateContext integration for synchronization
+   * @param {Object} flowStateContext - FlowStateContext instance
+   */
+  setFlowStateContext(flowStateContext) {
+    this.flowStateContext = flowStateContext;
+    console.log('FlowStateContext registered with NodeDataManager');
   }
 
   /**
@@ -184,12 +194,25 @@ export class NodeDataManager extends EventTarget {
       detail: { nodeId, nodeData: updatedData, updates, action: 'updated' }
     }));
 
+    // Sync with FlowStateContext if available
+    if (this.flowStateContext?.syncWithReactFlow) {
+      const reactFlowNode = {
+        id: nodeId,
+        type: 'auto-sync', // Will be overridden by actual type if available
+        position: { x: 0, y: 0 }, // Will be maintained by React Flow
+        data: updatedData,
+      };
+      
+      // Call syncWithReactFlow to update FlowStateContext
+      this.flowStateContext.syncWithReactFlow([reactFlowNode], []);
+    }
+
     // Trigger processing if requested
     if (triggerProcessing) {
       await this.processNode(nodeId);
     }
 
-    console.log(`Node ${nodeId} data updated`);
+    console.log(`Node ${nodeId} data updated and synced with FlowStateContext`);
   }
 
   /**
@@ -257,7 +280,7 @@ export class NodeDataManager extends EventTarget {
     });
 
     // Create connection data and update target node
-    const connectionData = ConnectionData.create(sourceNodeId, sourceHandle, targetHandle);
+    const connectionData = ConnectionData.create(sourceNodeId, sourceHandle, targetHandle, null, null);
     
     // Update target node with new connection
     if (allowMultipleConnections) {
@@ -522,15 +545,17 @@ export class NodeDataManager extends EventTarget {
         const sourceLabel = `${sourceNodeData.meta.label}_${connection.sourceNodeId}`;
         aggregated[sourceLabel] = sourceNodeData.output.data;
         
-        // Update connection with latest data
+        // Update connection with latest data and processed property
         updatedConnections[connectionId] = {
           ...connection,
           data: sourceNodeData.output.data,
+          processed: sourceNodeData.output.data, // NEW: Add processed property with source data
           meta: {
             ...connection.meta,
             timestamp: new Date().toISOString(),
             dataType: typeof sourceNodeData.output.data,
-            isActive: true
+            isActive: true,
+            lastProcessed: new Date().toISOString() // NEW: Track when data was processed
           }
         };
       } else {

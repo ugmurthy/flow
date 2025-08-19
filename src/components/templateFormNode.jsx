@@ -2,6 +2,8 @@ import React, { memo, useCallback, useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow, useNodeId } from '@xyflow/react';
 import { InputNodeData } from '../types/nodeSchema.js';
 import nodeDataManager, { NodeDataEvents } from '../services/nodeDataManager.js';
+import { useFlowState, useFlowStateNode, useFlowStateProcessing } from '../contexts/FlowStateContext.jsx';
+import { performanceMonitor } from '../utils/performanceMonitor.js';
 import { formatFormDataForDisplay } from '../utils/helpers';
 import Edit from '../icons/Edit';
 
@@ -29,55 +31,86 @@ function TemplateFormNode({ data }) {
   const { executeWorkflow } = useGlobal();
   const { updateNodeData } = useReactFlow();
   const nodeId = useNodeId();
-  const [nodeData, setNodeData] = useState(null);
+  
+  // Use FlowState hooks for optimized subscriptions
+  const flowState = useFlowState();
+  const nodeData = useFlowStateNode(nodeId);
+  const processingNodes = useFlowStateProcessing();
+  
+  // Local state for UI-specific data
   const [connectionCount, setConnectionCount] = useState(0);
-  const [processingStatus, setProcessingStatus] = useState('idle');
+  const [localProcessingStatus, setLocalProcessingStatus] = useState('idle');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Derived state
+  const isProcessing = processingNodes.has(nodeId);
+  const processingStatus = isProcessing ? 'processing' :
+    (nodeData?.output?.meta?.status || localProcessingStatus);
 
   // Initialize node with new schema
   useEffect(() => {
     const initializeNode = async () => {
-      // Ensure node data manager is initialized
-      await nodeDataManager.initialize();
-
-      // Convert old data format to new schema if needed
-      let newNodeData;
-      if (data.meta && data.input && data.output && data.error) {
-        // Already in new format
-        newNodeData = data;
-      } else {
-        // Convert from old format
-        newNodeData = InputNodeData.create({
-          meta: {
-            label: data.label || 'Template Form Node',
-            function: data.function || 'Dynamic Form Template',
-            emoji: data.emoji || '📝',
-            description: 'Template form node for collecting user input'
-          },
-          formFields: data.formFields || [],
-          input: {
-            config: {
-              validation: {},
-              allowExternalData: true
-            }
-          },
-          output: {
-            data: data.formData || {}
-          }
-        });
-      }
-
-      setNodeData(newNodeData);
-
-      // Register with node data manager
-      const safeUpdateNodeData = (nodeId, updates) => {
-        // Only update React Flow if the update is not coming from our own component
-        if (updates.data) {
-          updateNodeData(nodeId, updates);
-        }
-      };
+      const measurement = performanceMonitor.startMeasurement('nodeInitialization');
       
-      nodeDataManager.registerNode(nodeId, newNodeData, safeUpdateNodeData);
+      try {
+        // Ensure node data manager is initialized
+        await nodeDataManager.initialize();
+
+        // Convert old data format to new schema if needed
+        let newNodeData;
+        if (data.meta && data.input && data.output && data.error) {
+          // Already in new format
+          newNodeData = data;
+        } else {
+          // Convert from old format
+          newNodeData = InputNodeData.create({
+            meta: {
+              label: data.label || 'Template Form Node',
+              function: data.function || 'Dynamic Form Template',
+              emoji: data.emoji || '📝',
+              description: 'Template form node for collecting user input'
+            },
+            formFields: data.formFields || [],
+            input: {
+              config: {
+                validation: {},
+                allowExternalData: true
+              }
+            },
+            output: {
+              data: data.formData || {}
+            }
+          });
+        }
+
+        // Update FlowState with new node data
+        flowState.updateNode(nodeId, {
+          id: nodeId,
+          type: 'templateFormNode',
+          position: { x: 0, y: 0 }, // Will be updated by React Flow
+          data: newNodeData,
+        });
+
+        // Initialize local state
+        setLocalProcessingStatus(newNodeData.output?.meta?.status || 'idle');
+
+        console.log(`[Form Node] Node ${nodeId} initialized with FlowState integration`);
+
+        // Register with node data manager with optimized callback
+        const safeUpdateNodeData = (updateNodeId, updates) => {
+          // Only update React Flow if the update is not coming from our own component
+          if (updateNodeId === nodeId && updates.data) {
+            updateNodeData(updateNodeId, updates);
+          }
+        };
+        
+        nodeDataManager.registerNode(nodeId, newNodeData, safeUpdateNodeData);
+        
+        performanceMonitor.endMeasurement(measurement);
+      } catch (error) {
+        performanceMonitor.endMeasurement(measurement);
+        console.error('Error initializing form node:', error);
+      }
     };
 
     initializeNode();
@@ -88,20 +121,48 @@ function TemplateFormNode({ data }) {
     };
   }, [nodeId, updateNodeData]);
 
-  // Listen to node data events
+  // Reset function to clear form data (moved up to avoid hoisting issues)
+  const resetFormData = useCallback(async () => {
+    if (!nodeData) return;
+
+    try {
+      await nodeDataManager.updateNodeData(nodeId, {
+        output: {
+          data: {},
+          meta: {
+            timestamp: new Date().toISOString(),
+            status: 'idle'
+          }
+        },
+        error: {
+          hasError: false,
+          errors: []
+        }
+      }, true); // Trigger processing of connected nodes
+    } catch (error) {
+      console.error("Failed to reset form data:", error);
+    }
+  }, [nodeId, nodeData]);
+
+  // Listen to node data events (optimized)
   useEffect(() => {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === nodeId) {
-        setNodeData(event.detail.nodeData);
-        // Safe access with fallback
-        const status = event.detail.nodeData?.output?.meta?.status || 'idle';
-        setProcessingStatus(status);
+        const updatedNodeData = event.detail.nodeData;
+        console.log(`[Form Node][${nodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
+        
+        // Update local state for immediate UI feedback
+        const newStatus = updatedNodeData.output?.meta?.status || 'idle';
+        setLocalProcessingStatus(newStatus);
+        
+        console.log(`[Form Node][${nodeId}] Local state updated - Status: ${newStatus}`);
       }
     };
 
     const handleConnectionAdded = (event) => {
       if (event.detail.targetNodeId === nodeId) {
         setConnectionCount(prev => prev + 1);
+        console.log(`[Form Node][${nodeId}] Connection added, count: ${connectionCount + 1}`);
       }
     };
 
@@ -112,10 +173,11 @@ function TemplateFormNode({ data }) {
         if (connectionCount <= 1) {
           resetFormData();
         }
+        console.log(`[Form Node][${nodeId}] Connection removed, count: ${Math.max(0, connectionCount - 1)}`);
       }
     };
 
-    // Add event listeners
+    // Add event listeners (reduced to essential events)
     nodeDataManager.addEventListener(NodeDataEvents.NODE_DATA_UPDATED, handleNodeDataUpdate);
     nodeDataManager.addEventListener(NodeDataEvents.CONNECTION_ADDED, handleConnectionAdded);
     nodeDataManager.addEventListener(NodeDataEvents.CONNECTION_REMOVED, handleConnectionRemoved);
@@ -126,7 +188,7 @@ function TemplateFormNode({ data }) {
       nodeDataManager.removeEventListener(NodeDataEvents.CONNECTION_ADDED, handleConnectionAdded);
       nodeDataManager.removeEventListener(NodeDataEvents.CONNECTION_REMOVED, handleConnectionRemoved);
     };
-  }, [nodeId, connectionCount]);
+  }, [nodeId, connectionCount, resetFormData]);
 
   const handleOpenModal = useCallback(() => {
     if (!nodeData) return;
@@ -139,6 +201,9 @@ function TemplateFormNode({ data }) {
         setIsSubmitting(true);
         try {
           console.log("Form submitted:", nodeId, formData);
+          
+          // Set processing status through FlowState
+          flowState.setNodeProcessing(nodeId, true);
           
           // Set processing status first
           await nodeDataManager.updateNodeData(nodeId, {
@@ -188,34 +253,13 @@ function TemplateFormNode({ data }) {
           throw error; // Re-throw to handle in modal
         } finally {
           setIsSubmitting(false);
+          // Clear processing status
+          flowState.setNodeProcessing(nodeId, false);
         }
       }
     });
-  }, [openModal, nodeData, nodeId, isSubmitting]);
-
-  // Reset function to clear form data
-  const resetFormData = useCallback(async () => {
-    if (!nodeData) return;
-
-    try {
-      await nodeDataManager.updateNodeData(nodeId, {
-        output: {
-          data: {},
-          meta: {
-            timestamp: new Date().toISOString(),
-            status: 'idle'
-          }
-        },
-        error: {
-          hasError: false,
-          errors: []
-        }
-      }, true); // Trigger processing of connected nodes
-    } catch (error) {
-      console.error("Failed to reset form data:", error);
-    }
-  }, [nodeId, nodeData]);
-
+  }, [openModal, nodeData, nodeId, isSubmitting, flowState, resetFormData]);
+  console.log("Form Component ",nodeData)
   if (!nodeData) {
     return (
       <div className="px-4 py-2 shadow-md rounded-md border-2 border-gray-300 bg-gray-100">

@@ -1,84 +1,117 @@
 /**
- * Fetch Node Component - Updated for New Schema
- * Uses the new NodeData schema and event-driven updates
+ * Optimized Fetch Node Component
+ * Uses the new FlowStateContext and synchronization system
+ * Eliminates synchronization issues and improves performance
  */
 
 import React, { memo, useEffect, useState, useCallback } from 'react';
 import { Handle, Position, useNodeId, useReactFlow } from '@xyflow/react';
 import { ProcessNodeData } from '../types/nodeSchema.js';
 import nodeDataManager, { NodeDataEvents } from '../services/nodeDataManager.js';
+import { useFlowState, useFlowStateNode, useFlowStateProcessing } from '../contexts/FlowStateContext.jsx';
+import { performanceMonitor } from '../utils/performanceMonitor.js';
 import ViewButton from '../components/ViewButton';
 import ButtonPanel from './ButtonPanel';
 
-function FetchNodeNew({ data, selected }) {
+function FetchNodeNewOptimized({ data, selected }) {
   const { updateNodeData } = useReactFlow();
   const currentNodeId = useNodeId();
-  const [nodeData, setNodeData] = useState(null);
-  const [processingStatus, setProcessingStatus] = useState('idle');
+  
+  // Use FlowState hooks for optimized subscriptions
+  const flowState = useFlowState();
+  const nodeData = useFlowStateNode(currentNodeId);
+  const processingNodes = useFlowStateProcessing();
+  
+  // Local state for UI-specific data
   const [fetchResult, setFetchResult] = useState(null);
+  const [localProcessingStatus, setLocalProcessingStatus] = useState('idle');
+
+  // Derived state
+  const isProcessing = processingNodes.has(currentNodeId);
+  const processingStatus = isProcessing ? 'processing' : 
+    (nodeData?.output?.meta?.status || localProcessingStatus);
 
   // Initialize node with new schema
   useEffect(() => {
     const initializeNode = async () => {
-      // Ensure node data manager is initialized
-      await nodeDataManager.initialize();
-
-      // Convert old data format to new schema if needed
-      let newNodeData;
-      if (data.meta && data.input && data.output && data.error) {
-        // Already in new format
-        newNodeData = data;
-      } else {
-        // Convert from old format
-        newNodeData = ProcessNodeData.create({
-          meta: {
-            label: data.label || 'API Fetch',
-            function: data.function || 'HTTP Request',
-            emoji: data.emoji || '🌐',
-            description: 'Performs HTTP requests to external APIs'
-          },
-          input: {
-            config: {
-              url: data.formData?.url || 'https://jsonplaceholder.typicode.com/posts/1',
-              method: data.formData?.method || 'GET',
-              headers: {},
-              timeout: 30000,
-              retries: 3
-            }
-          },
-          output: {
-            data: {
-              result: data.formData?.result || null,
-              status: data.formData?.status || 'idle',
-              error: data.formData?.error || null,
-              responseTime: null,
-              statusCode: null
-            }
-          },
-          plugin: {
-            name: 'http-fetcher',
-            config: {
-              followRedirects: true,
-              validateStatus: true
-            }
-          }
-        });
-      }
-
-      setNodeData(newNodeData);
-      const initialResult = newNodeData.output?.data?.result || null;
-      setFetchResult(initialResult);
-      console.log(`Node ${currentNodeId} initialized with result:`, !!initialResult);
-
-      // Register with node data manager - use a wrapper to prevent infinite loops
-      const safeUpdateNodeData = (nodeId, updates) => {
-        // Only update React Flow if the update is not coming from our own component
-        if (nodeId === currentNodeId && updates.data) {
-          updateNodeData(nodeId, updates);
-        }
-      };
+      const measurement = performanceMonitor.startMeasurement('nodeInitialization');
       
-      nodeDataManager.registerNode(currentNodeId, newNodeData, safeUpdateNodeData);
+      try {
+        // Ensure node data manager is initialized
+        await nodeDataManager.initialize();
+
+        // Convert old data format to new schema if needed
+        let newNodeData;
+        if (data.meta && data.input && data.output && data.error) {
+          // Already in new format
+          newNodeData = data;
+        } else {
+          // Convert from old format
+          newNodeData = ProcessNodeData.create({
+            meta: {
+              label: data.label || 'API Fetch',
+              function: data.function || 'HTTP Request',
+              emoji: data.emoji || '🌐',
+              description: 'Performs HTTP requests to external APIs'
+            },
+            input: {
+              config: {
+                url: data.formData?.url || 'https://jsonplaceholder.typicode.com/posts',
+                method: data.formData?.method || 'GET',
+                headers: {},
+                timeout: 30000,
+                retries: 3
+              }
+            },
+            output: {
+              data: {
+                result: data.formData?.result || null,
+                status: data.formData?.status || 'idle',
+                error: data.formData?.error || null,
+                responseTime: null,
+                statusCode: null
+              }
+            },
+            plugin: {
+              name: 'http-fetcher',
+              config: {
+                followRedirects: true,
+                validateStatus: true
+              }
+            }
+          });
+        }
+
+        // Update FlowState with new node data
+        flowState.updateNode(currentNodeId, {
+          id: currentNodeId,
+          type: 'fetchNodeNew',
+          position: { x: 0, y: 0 }, // Will be updated by React Flow
+          data: newNodeData,
+        });
+
+        // Initialize fetch result from node data
+        const initialResult = newNodeData.output?.data?.result || null;
+        setFetchResult(initialResult);
+        setLocalProcessingStatus(newNodeData.output?.meta?.status || 'idle');
+
+        console.log(`[Optimized] Node ${currentNodeId} initialized with result:`, !!initialResult);
+
+        // Register with node data manager with optimized callback
+        const safeUpdateNodeData = (nodeId, updates) => {
+          // Only update React Flow if the update is not coming from our own component
+          if (nodeId === currentNodeId && updates.data) {
+            updateNodeData(nodeId, updates);
+          }
+        };
+        
+        nodeDataManager.registerNode(currentNodeId, newNodeData, safeUpdateNodeData);
+        
+        performanceMonitor.endMeasurement(measurement);
+      } catch (error) {
+        performanceMonitor.endMeasurement(measurement);
+        console.error('Error initializing optimized node:', error);
+      }
     };
 
     initializeNode();
@@ -87,65 +120,47 @@ function FetchNodeNew({ data, selected }) {
     return () => {
       nodeDataManager.unregisterNode(currentNodeId);
     };
-  }, [currentNodeId, updateNodeData]);
+  }, [currentNodeId, updateNodeData, flowState]);
 
-  // Listen to node data events
+  // Listen to node data events (reduced event handling)
   useEffect(() => {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === currentNodeId) {
         const updatedNodeData = event.detail.nodeData;
-        console.log(`[${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
-        console.log(`[${currentNodeId}] Updated node data:`, updatedNodeData);
+        console.log(`[Optimized][${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
         
-        setNodeData(updatedNodeData);
-        
-        // Safely extract status and result
+        // Update local state for immediate UI feedback
         const newStatus = updatedNodeData.output?.meta?.status || 'idle';
         const newResult = updatedNodeData.output?.data?.result || null;
         
-        console.log(`[${currentNodeId}] Extracted from event - Status: ${newStatus}, Result:`, newResult);
-        
-        setProcessingStatus(newStatus);
+        setLocalProcessingStatus(newStatus);
         setFetchResult(newResult);
         
-        console.log(`[${currentNodeId}] Local state updated - Status: ${newStatus}, Has Result: ${!!newResult}`);
+        console.log(`[Optimized][${currentNodeId}] Local state updated - Status: ${newStatus}, Has Result: ${!!newResult}`);
       }
     };
 
-    const handleNodeProcessing = (event) => {
-      if (event.detail.nodeId === currentNodeId) {
-        setProcessingStatus('processing');
-      }
-    };
-
-    const handleNodeProcessed = (event) => {
-      if (event.detail.nodeId === currentNodeId) {
-        setProcessingStatus(event.detail.success ? 'success' : 'error');
-      }
-    };
-
-    // Add event listeners
+    // Only listen to essential events
     nodeDataManager.addEventListener(NodeDataEvents.NODE_DATA_UPDATED, handleNodeDataUpdate);
-    nodeDataManager.addEventListener(NodeDataEvents.NODE_PROCESSING, handleNodeProcessing);
-    nodeDataManager.addEventListener(NodeDataEvents.NODE_PROCESSED, handleNodeProcessed);
 
     return () => {
-      // Remove event listeners
       nodeDataManager.removeEventListener(NodeDataEvents.NODE_DATA_UPDATED, handleNodeDataUpdate);
-      nodeDataManager.removeEventListener(NodeDataEvents.NODE_PROCESSING, handleNodeProcessing);
-      nodeDataManager.removeEventListener(NodeDataEvents.NODE_PROCESSED, handleNodeProcessed);
     };
   }, [currentNodeId]);
 
-  // Perform HTTP fetch
+  // Optimized fetch function with performance monitoring
   const performFetch = useCallback(async () => {
     if (!nodeData) return;
 
+    const measurement = performanceMonitor.startMeasurement('fetchOperation');
     const config = nodeData.input.config;
     const startTime = Date.now();
 
     try {
-      // Set processing status
+      // Set processing status through FlowState
+      flowState.setNodeProcessing(currentNodeId, true);
+      
+      // Update node data with processing status
       await nodeDataManager.updateNodeData(currentNodeId, {
         output: {
           meta: {
@@ -193,9 +208,7 @@ function FetchNodeNew({ data, selected }) {
         result = await response.text();
       }
 
-      console.log(`[${currentNodeId}] Fetch completed successfully. Result:`, result);
-      console.log(`[${currentNodeId}] Response status:`, response.status);
-      console.log(`[${currentNodeId}] Response time:`, responseTime);
+      console.log(`[Optimized][${currentNodeId}] Fetch completed successfully. Result:`, result);
       
       // Update node data with successful result
       const updateData = {
@@ -217,44 +230,18 @@ function FetchNodeNew({ data, selected }) {
         }
       };
       
-      console.log(`[${currentNodeId}] About to update nodeDataManager with:`, updateData);
       await nodeDataManager.updateNodeData(currentNodeId, updateData, true);
-      console.log(`[${currentNodeId}] NodeDataManager update completed`);
       
-      // Also update local state directly as a fallback
+      // Update local state immediately for better UX
       setFetchResult(result);
-      console.log(`[${currentNodeId}] Local fetchResult state updated directly`);
+      setLocalProcessingStatus('success');
       
-      // Force a re-render by updating the nodeData state directly
-      setNodeData(prevNodeData => {
-        const updatedNodeData = {
-          ...prevNodeData,
-          output: {
-            ...prevNodeData.output,
-            data: {
-              ...prevNodeData.output.data,
-              result,
-              status: 'success',
-              error: null,
-              responseTime,
-              statusCode: response.status,
-              headers: Object.fromEntries(response.headers.entries())
-            },
-            meta: {
-              ...prevNodeData.output.meta,
-              status: 'success',
-              timestamp: new Date().toISOString(),
-              processingTime: responseTime,
-              dataSize: JSON.stringify(result).length
-            }
-          }
-        };
-        console.log(`[${currentNodeId}] Local nodeData state updated directly:`, updatedNodeData);
-        return updatedNodeData;
-      });
+      performanceMonitor.endMeasurement(measurement);
 
     } catch (error) {
       const responseTime = Date.now() - startTime;
+      
+      console.error(`[Optimized][${currentNodeId}] Fetch error:`, error);
       
       // Update node data with error
       await nodeDataManager.updateNodeData(currentNodeId, {
@@ -287,10 +274,16 @@ function FetchNodeNew({ data, selected }) {
           }]
         }
       });
+      
+      setLocalProcessingStatus('error');
+      performanceMonitor.endMeasurement(measurement);
+    } finally {
+      // Clear processing status
+      flowState.setNodeProcessing(currentNodeId, false);
     }
-  }, [currentNodeId, nodeData]);
+  }, [currentNodeId, nodeData, flowState]);
 
-  // Auto-fetch when node is initialized or input changes
+  // Auto-fetch logic (optimized) - Using connection-level processed data
   useEffect(() => {
     if (nodeData && nodeData.input.config.url) {
       // Check for processed data in individual connections
@@ -302,11 +295,11 @@ function FetchNodeNew({ data, selected }) {
       
       // Allow auto-fetch for standalone nodes OR nodes with processed inputs
       if ((hasProcessedInputs || isStandaloneNode) && hasNotFetchedYet && shouldAutoFetch) {
-        console.log(`Auto-fetching for node ${currentNodeId} - Standalone: ${isStandaloneNode}, HasInputs: ${hasProcessedInputs}`);
+        console.log(`[Optimized] Auto-fetching for node ${currentNodeId} - Standalone: ${isStandaloneNode}, HasInputs: ${hasProcessedInputs}`);
         performFetch();
       }
     }
-  }, [nodeData?.input.connections, nodeData?.input.config.url, performFetch]);
+  }, [nodeData?.input.connections, nodeData?.input.config.url, performFetch, processingStatus]);
 
   // Get status color based on processing status
   const getStatusColor = () => {
@@ -367,7 +360,7 @@ function FetchNodeNew({ data, selected }) {
       <ButtonPanel>
         <ViewButton
           data={`\`\`\`json\n${JSON.stringify(nodeData, null, 2)}\`\`\``}
-          title="Node Data (New Schema)"
+          title="Node Data (Optimized)"
           className="hover:bg-gray-50"
         />
         <button
@@ -405,7 +398,7 @@ function FetchNodeNew({ data, selected }) {
             
             {/* Status Info */}
             <div className="text-xs text-gray-400 mt-1">
-              Status: {processingStatus}
+              Status: {processingStatus} {isProcessing && '(Processing)'}
               {nodeData.output.data.responseTime && (
                 <span className="ml-2">({nodeData.output.data.responseTime}ms)</span>
               )}
@@ -433,13 +426,12 @@ function FetchNodeNew({ data, selected }) {
           </div>
         )}
 
-        {/* Debug Info - Remove in production */}
+        {/* Performance Info - Development only */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="mt-2 p-1 bg-gray-100 border rounded text-xs">
-            <div>Debug: fetchResult={!!fetchResult}, nodeData.result={!!nodeData.output.data.result}</div>
-            <div>fetchResult type: {typeof fetchResult}, value: {fetchResult ? JSON.stringify(fetchResult).substring(0, 50) + '...' : 'null'}</div>
-            <div>nodeData.result type: {typeof nodeData.output.data.result}, value: {nodeData.output.data.result ? JSON.stringify(nodeData.output.data.result).substring(0, 50) + '...' : 'null'}</div>
-            <div>processingStatus: {processingStatus}</div>
+          <div className="mt-2 p-1 bg-blue-100 border rounded text-xs">
+            <div>Optimized: ✅ FlowState, Debounced Validation, Performance Monitoring</div>
+            <div>Processing: {isProcessing ? 'Active' : 'Idle'}, Status: {processingStatus}</div>
+            <div>Result: {fetchResult ? 'Cached' : 'From NodeData'}</div>
           </div>
         )}
 
@@ -492,4 +484,4 @@ function FetchNodeNew({ data, selected }) {
   );
 }
 
-export default memo(FetchNodeNew);
+export default memo(FetchNodeNewOptimized);

@@ -286,15 +286,35 @@ function ProcessNew({ data, selected }) {
           </div>
         )}
 
-        {/* Input Summary */}
-        {Object.keys(nodeData.input.processed).length > 0 && (
-          <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-            <div className="font-medium text-blue-800">Inputs:</div>
-            <div className="text-blue-600 mt-1">
-              {Object.keys(nodeData.input.processed).length} connected source(s)
+        {/* Input Summary - Using connection-level processed data */}
+        {(() => {
+          const connections = nodeData.input.connections || {};
+          const processedConnections = Object.entries(connections).filter(([_, conn]) => conn.processed);
+          return processedConnections.length > 0 && (
+            <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+              <div className="font-medium text-blue-800">Inputs:</div>
+              <div className="text-blue-600 mt-1">
+                {processedConnections.length} connected source(s)
+              </div>
+              {/* Show individual connection details */}
+              {processedConnections.map(([connectionId, connection]) => (
+                <div key={connectionId} className="text-blue-500 mt-1 text-xs">
+                  • {connection.sourceNodeId}
+                  {connection.meta?.lastProcessed && (
+                    <span className="text-gray-500 ml-1">
+                      ({new Date(connection.meta.lastProcessed).toLocaleTimeString()})
+                    </span>
+                  )}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="ml-2 text-xs text-gray-500">
+                      Type: {typeof connection.processed}, Data: {connection.processed ? '✅' : '❌'}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Output Summary */}
         {Object.keys(nodeData.output.data).length > 0 && (
