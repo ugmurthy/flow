@@ -303,9 +303,6 @@ export class EnhancedSchemaValidator extends SchemaValidator {
         errors.push('input.connections must be an object');
       }
       
-      if (input.processed && typeof input.processed !== 'object') {
-        errors.push('input.processed must be an object');
-      }
       
       if (input.config && typeof input.config !== 'object') {
         errors.push('input.config must be an object');
@@ -566,7 +563,6 @@ export const ValidationUtils = {
       },
       input: {
         connections: nodeData.input?.connections || {},
-        processed: nodeData.input?.processed || {},
         config: nodeData.input?.config || {},
         ...nodeData.input
       },

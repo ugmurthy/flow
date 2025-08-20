@@ -71,7 +71,6 @@ export const NodeData = {
     },
     input: {
       connections: input.connections || {},
-      processed: input.processed || {},
       config: input.config || {},
       ...input
     },
@@ -116,9 +115,6 @@ export const NodeData = {
       newData.input = { ...newData.input, ...updates.input };
       if (updates.input.connections) {
         newData.input.connections = { ...newData.input.connections, ...updates.input.connections };
-      }
-      if (updates.input.processed) {
-        newData.input.processed = { ...newData.input.processed, ...updates.input.processed };
       }
       if (updates.input.config) {
         newData.input.config = { ...newData.input.config, ...updates.input.config };
@@ -385,7 +381,6 @@ export class SchemaValidator {
       errors.push('input section is required');
     } else {
       if (!nodeData.input.connections) errors.push('input.connections is required');
-      if (!nodeData.input.processed) errors.push('input.processed is required');
       if (!nodeData.input.config) errors.push('input.config is required');
     }
 

@@ -68,7 +68,6 @@ describe('Connection Management', () => {
       // Verify connection is cleaned up
       const updatedNodeC = nodeDataManager.getNodeData('nodeC');
       expect(Object.keys(updatedNodeC.input.connections)).toHaveLength(0);
-      expect(updatedNodeC.input.processed).toEqual({});
     });
 
     it('should handle edge deletion when connection does not exist', async () => {
@@ -106,25 +105,35 @@ describe('Connection Management', () => {
       expect(mockReactFlowCallbacks.removeEdge).toHaveBeenCalledWith('nodeA-nodeC');
     });
 
-    it('should clear processed data when connection is replaced', async () => {
-      // Add connection and simulate processed data
+    it('should verify connection-level processed data exists in connections', async () => {
+      // Add connection A → C
       await nodeDataManager.addConnection('nodeA', 'nodeC', 'default', 'default', 'nodeA-nodeC');
-      await nodeDataManager.updateNodeData('nodeC', {
-        input: { processed: { 'Node A_nodeA': { test: 'data' } } }
+      
+      // Set some output data on nodeA to trigger processing
+      await nodeDataManager.updateNodeData('nodeA', {
+        output: { data: { test: 'data from A' } }
       });
       
-      // Verify initial processed data exists
-      let nodeC = nodeDataManager.getNodeData('nodeC');
-      expect(nodeC.input.processed['Node A_nodeA']).toEqual({ test: 'data' });
+      // Process nodeC to populate connection-level processed data
+      await nodeDataManager.processNode('nodeC');
       
-      // Replace connection
+      // Verify connection-level processed data exists
+      const nodeC = nodeDataManager.getNodeData('nodeC');
+      const connectionId = 'nodeA-nodeC-default-default';
+      expect(nodeC.input.connections[connectionId]).toBeDefined();
+      expect(nodeC.input.connections[connectionId].processed).toBeDefined();
+      
+      // Replace connection with nodeB
+      await nodeDataManager.updateNodeData('nodeB', {
+        output: { data: { test: 'data from B' } }
+      });
       await nodeDataManager.addConnection('nodeB', 'nodeC', 'default', 'default', 'nodeB-nodeC');
       
-      // Verify processed data was cleared during connection replacement
-      // Note: The processing system will populate it again with new data from nodeB
-      nodeC = nodeDataManager.getNodeData('nodeC');
-      expect(nodeC.input.processed['Node A_nodeA']).toBeUndefined();
-      expect(nodeC.input.processed['Node B_nodeB']).toBeDefined();
+      // Verify new connection has processed data
+      const updatedNodeC = nodeDataManager.getNodeData('nodeC');
+      const newConnectionId = 'nodeB-nodeC-default-default';
+      expect(updatedNodeC.input.connections[newConnectionId]).toBeDefined();
+      expect(updatedNodeC.input.connections[newConnectionId].processed).toBeDefined();
     });
   });
 

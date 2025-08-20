@@ -261,8 +261,7 @@ export class NodeDataManager extends EventTarget {
         // Clear all connections from target node (single connection mode only)
         await this.updateNodeData(targetNodeId, {
           input: {
-            connections: {},
-            processed: {} // Clear processed data when connections change
+            connections: {}
           }
         });
       }
@@ -343,8 +342,7 @@ export class NodeDataManager extends EventTarget {
       
       await this.updateNodeData(targetNodeId, {
         input: {
-          connections: updatedConnections,
-          processed: {} // Clear processed data when connection is removed
+          connections: updatedConnections
         }
       });
       
@@ -366,7 +364,10 @@ export class NodeDataManager extends EventTarget {
   async removeConnectionByEdgeId(reactFlowEdgeId) {
     console.log("removeConnectionByEdgeId", reactFlowEdgeId);
     const REACT_FLOW_EDGE_PREFIX = "xy-edge__";
-    const edgeId = reactFlowEdgeId.split(REACT_FLOW_EDGE_PREFIX)[1];
+    // Handle both cases: with and without React Flow prefix
+    const edgeId = reactFlowEdgeId.includes(REACT_FLOW_EDGE_PREFIX)
+      ? reactFlowEdgeId.split(REACT_FLOW_EDGE_PREFIX)[1]
+      : reactFlowEdgeId;
     console.log("removeConnectionByEdgeId", reactFlowEdgeId,'->',edgeId);
     // Find connection by edge ID
     let connectionToRemove = null;
@@ -466,13 +467,6 @@ export class NodeDataManager extends EventTarget {
 
       // Aggregate input data
       const aggregatedInputs = await this._aggregateInputs(nodeId, nodeData);
-      
-      // Update processed inputs
-      await this.updateNodeData(nodeId, {
-        input: {
-          processed: aggregatedInputs
-        }
-      });
 
       // Process with plugin if configured
       let result = aggregatedInputs;
