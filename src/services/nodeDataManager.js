@@ -186,7 +186,7 @@ export class NodeDataManager extends EventTarget {
     // Update React Flow node
     const updateCallback = this.updateCallbacks.get(nodeId);
     if (updateCallback) {
-      updateCallback(nodeId, { data: updatedData });
+      updateCallback(nodeId, updatedData);
     }
 
     // Emit update event
@@ -491,6 +491,11 @@ export class NodeDataManager extends EventTarget {
         detail: { nodeId, result, success: true }
       }));
 
+      // Clear FlowStateContext processing state
+      if (this.flowStateContext?.setNodeProcessing) {
+        this.flowStateContext.setNodeProcessing(nodeId, false);
+      }
+
       // Trigger processing of connected nodes
       await this._triggerDownstreamProcessing(nodeId);
 
@@ -519,6 +524,11 @@ export class NodeDataManager extends EventTarget {
       this.dispatchEvent(new CustomEvent(NodeDataEvents.NODE_ERROR, {
         detail: { nodeId, error, nodeData }
       }));
+
+      // Clear FlowStateContext processing state on error
+      if (this.flowStateContext?.setNodeProcessing) {
+        this.flowStateContext.setNodeProcessing(nodeId, false);
+      }
     }
   }
 

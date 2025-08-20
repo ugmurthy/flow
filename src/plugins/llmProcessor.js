@@ -324,7 +324,7 @@ export class LLMProcessorPlugin extends BasePlugin {
    */
   async _processWithOllama(inputText, config) {
     const { baseUrl, model, maxTokens, temperature, systemPrompt, timeout } = config;
-    
+    console.log("_processWithOllama inputText",inputText)
     const requestBody = {
       model,
       messages: [

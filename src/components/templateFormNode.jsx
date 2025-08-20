@@ -259,7 +259,7 @@ function TemplateFormNode({ data }) {
       }
     });
   }, [openModal, nodeData, nodeId, isSubmitting, flowState, resetFormData]);
-  console.log("Form Component ",nodeData)
+  //console.log("Form Component ",nodeData)
   if (!nodeData) {
     return (
       <div className="px-4 py-2 shadow-md rounded-md border-2 border-gray-300 bg-gray-100">

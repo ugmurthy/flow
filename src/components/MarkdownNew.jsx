@@ -89,7 +89,7 @@ function MarkdownNew({ data, selected }) {
         setRenderedContent(newNodeData.output.data.content || '');
         setLocalProcessingStatus(newNodeData.output?.meta?.status || 'idle');
 
-        console.log(`[Markdown Node] Node ${currentNodeId} initialized with FlowState integration`);
+        //console.log(`[Markdown Node] Node ${currentNodeId} initialized with FlowState integration`);
 
         // Register with node data manager with optimized callback
         const safeUpdateNodeData = (updateNodeId, updates) => {
@@ -190,7 +190,7 @@ function MarkdownNew({ data, selected }) {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === currentNodeId) {
         const updatedNodeData = event.detail.nodeData;
-        console.log(`[Markdown Node][${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
+        //console.log(`[Markdown Node][${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
         
         // Update local state for immediate UI feedback
         const newStatus = updatedNodeData.output?.meta?.status || 'idle';
@@ -199,14 +199,14 @@ function MarkdownNew({ data, selected }) {
         // Update rendered content when input data changes, but skip node data update to prevent recursion
         updateRenderedContent(updatedNodeData, true);
         
-        console.log(`[Markdown Node][${currentNodeId}] Local state updated - Status: ${newStatus}`);
+        //console.log(`[Markdown Node][${currentNodeId}] Local state updated - Status: ${newStatus}`);
       }
     };
 
     const handleNodeProcessing = (event) => {
       if (event.detail.nodeId === currentNodeId) {
         setLocalProcessingStatus('processing');
-        console.log(`[Markdown Node][${currentNodeId}] Processing started`);
+        //console.log(`[Markdown Node][${currentNodeId}] Processing started`);
       }
     };
 
@@ -214,7 +214,7 @@ function MarkdownNew({ data, selected }) {
       if (event.detail.nodeId === currentNodeId) {
         const newStatus = event.detail.success ? 'success' : 'error';
         setLocalProcessingStatus(newStatus);
-        console.log(`[Markdown Node][${currentNodeId}] Processing completed - Status: ${newStatus}`);
+        //console.log(`[Markdown Node][${currentNodeId}] Processing completed - Status: ${newStatus}`);
       }
     };
 
@@ -255,7 +255,7 @@ function MarkdownNew({ data, selected }) {
   }
 
   const styleConfig = nodeData.input.config.styleConfig || {};
-  console.log(`[MarkDown] Rendered. id: '${currentNodeId}' nodeData:`, nodeData);
+  //console.log(`[MarkDown] Rendered. id: '${currentNodeId}' nodeData:`, nodeData);
   return (
     <div className="group relative">
       {/* Hover Buttons */}

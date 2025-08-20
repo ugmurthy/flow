@@ -4,7 +4,7 @@
  * Eliminates synchronization issues between React Flow, NodeDataManager, and components
  */
 
-import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect, useMemo } from 'react';
 import { produce } from 'immer';
 import { debouncedValidator } from '../utils/debouncedValidation.js';
 import { validationCache } from '../utils/validationCache.js';
@@ -429,8 +429,8 @@ export const FlowStateProvider = ({ children }) => {
     };
   }, [syncWithReactFlow]);
 
-  // Context value
-  const contextValue = {
+  // Context value - memoized to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
     // State
     state,
     
@@ -471,7 +471,23 @@ export const FlowStateProvider = ({ children }) => {
     performanceMonitor: performanceMonitorRef.current,
     validationCache: validationCacheRef.current,
     debouncedValidator: debouncedValidatorRef.current,
-  };
+  }), [
+    state,
+    dispatch,
+    updateNode,
+    removeNode,
+    updateEdge,
+    removeEdge,
+    setNodeProcessing,
+    validateWorkflow,
+    debouncedValidateWorkflow,
+    syncWithReactFlow,
+    selectNode,
+    selectEdge,
+    selectValidation,
+    selectProcessingNodes,
+    selectSyncState,
+  ]);
 
   return (
     <FlowStateContext.Provider value={contextValue}>

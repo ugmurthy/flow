@@ -167,7 +167,8 @@ export const createLLMProcessNode = () => ({
       config: {
         aggregationStrategy: DEFAULT_FORM_CONFIGS.aggregationStrategy,
         requiredInputs: ['prompt'],
-        expectedDataTypes: ['object', 'string']
+        expectedDataTypes: ['object', 'string'],
+        allowMultipleConnections:true
       }
     },
     output: {

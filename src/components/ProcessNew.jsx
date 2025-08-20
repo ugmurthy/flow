@@ -1,6 +1,6 @@
 /**
- * Process Node Component - Updated for New Schema
- * Uses the new NodeData schema and event-driven updates instead of 100ms polling
+ * Process Node Component - Updated for New Schema with FlowStateContext Integration
+ * Uses FlowStateContext for optimized state management while preserving plugin functionality
  */
 
 import React, { memo, useEffect, useState, useCallback } from 'react';
@@ -8,6 +8,8 @@ import { Handle, Position, useNodeId, useReactFlow } from '@xyflow/react';
 import { ProcessNodeData } from '../types/nodeSchema.js';
 import nodeDataManager, { NodeDataEvents } from '../services/nodeDataManager.js';
 import pluginRegistry from '../services/pluginRegistry.js';
+import { useFlowState, useFlowStateNode, useFlowStateProcessing } from '../contexts/FlowStateContext.jsx';
+import { performanceMonitor } from '../utils/performanceMonitor.js';
 import ViewButton from '../components/ViewButton';
 import ConnectionBadge from './ConnectionBadge';
 import ButtonPanel from './ButtonPanel';
@@ -15,61 +17,94 @@ import ButtonPanel from './ButtonPanel';
 function ProcessNew({ data, selected }) {
   const { updateNodeData } = useReactFlow();
   const currentNodeId = useNodeId();
-  const [nodeData, setNodeData] = useState(null);
-  const [processingStatus, setProcessingStatus] = useState('idle');
-  const [errorState, setErrorState] = useState(null);
+  
+  // Use FlowState hooks for optimized subscriptions
+  const { updateNode, setNodeProcessing } = useFlowState();
+  const nodeData = useFlowStateNode(currentNodeId);
+  const processingNodes = useFlowStateProcessing();
+  
+  // Local state for UI-specific immediate feedback only
+  const [localProcessingStatus, setLocalProcessingStatus] = useState('idle');
+  const [localErrorState, setLocalErrorState] = useState(null);
 
-  // Initialize node with new schema
+  // Derived state combining FlowState + local state
+  const isProcessing = processingNodes.has(currentNodeId);
+  const processingStatus = isProcessing ? 'processing' :
+    (nodeData?.output?.meta?.status || 'idle');
+  const errorState = nodeData?.error?.hasError ? nodeData.error : localErrorState;
+
+  // Initialize node with new schema and FlowState integration
   useEffect(() => {
     const initializeNode = async () => {
-      // Ensure node data manager is initialized
-      await nodeDataManager.initialize();
-
-      // Convert old data format to new schema if needed
-      let newNodeData;
-      if (data.meta && data.input && data.output && data.error) {
-        // Already in new format
-        newNodeData = data;
-      } else {
-        // Convert from old format
-        newNodeData = ProcessNodeData.create({
-          meta: {
-            label: data.label || 'Process Node',
-            function: data.function || 'Data Processing',
-            emoji: data.emoji || '⚙️',
-            description: 'Processes input data using configured plugins'
-          },
-          input: {
-            config: {
-              aggregationStrategy: 'merge',
-              requiredInputs: [],
-              expectedDataTypes: ['object', 'string', 'array']
-            }
-          },
-          output: {
-            data: data.formData || {}
-          },
-          plugin: data.plugin || {
-            name: 'data-transformer',
-            config: {
-              strategy: 'merge',
-              preserveMetadata: true
-            }
-          }
-        });
-      }
-
-      setNodeData(newNodeData);
-
-      // Register with node data manager - use a wrapper to prevent infinite loops
-      const safeUpdateNodeData = (nodeId, updates) => {
-        // Only update React Flow if the update is not coming from our own component
-        if (nodeId === currentNodeId && updates.data) {
-          updateNodeData(nodeId, updates);
-        }
-      };
+      const measurement = performanceMonitor.startMeasurement('nodeInitialization');
       
-      nodeDataManager.registerNode(currentNodeId, newNodeData, safeUpdateNodeData);
+      try {
+        // Ensure node data manager is initialized
+        await nodeDataManager.initialize();
+
+        // Convert old data format to new schema if needed
+        let newNodeData;
+        if (data.meta && data.input && data.output && data.error) {
+          // Already in new format
+          newNodeData = data;
+        } else {
+          // Convert from old format
+          newNodeData = ProcessNodeData.create({
+            meta: {
+              label: data.label || 'Process Node',
+              function: data.function || 'Data Processing',
+              emoji: data.emoji || '⚙️',
+              description: 'Processes input data using configured plugins'
+            },
+            input: {
+              config: {
+                aggregationStrategy: 'merge',
+                requiredInputs: [],
+                expectedDataTypes: ['object', 'string', 'array']
+              }
+            },
+            output: {
+              data: data.formData || {}
+            },
+            plugin: data.plugin || {
+              name: 'data-transformer',
+              config: {
+                strategy: 'merge',
+                preserveMetadata: true
+              }
+            }
+          });
+        }
+
+        // Update FlowState with new node data
+        updateNode(currentNodeId, {
+          id: currentNodeId,
+          type: 'processNew',
+          position: { x: 0, y: 0 }, // Will be updated by React Flow
+          data: newNodeData,
+        });
+
+        // Initialize local state
+        setLocalProcessingStatus(newNodeData.output?.meta?.status || 'idle');
+        setLocalErrorState(newNodeData.error?.hasError ? newNodeData.error : null);
+
+        console.log(`[Process Node] Node ${currentNodeId} initialized with FlowState integration`);
+
+        // Register with node data manager with optimized callback
+        const safeUpdateNodeData = (updateNodeId, updates) => {
+          // Only update React Flow if the update is not coming from our own component
+          if (updateNodeId === currentNodeId && updates) {
+            updateNodeData(updateNodeId, { data: updates });
+          }
+        };
+        
+        nodeDataManager.registerNode(currentNodeId, newNodeData, safeUpdateNodeData);
+        
+        performanceMonitor.endMeasurement(measurement);
+      } catch (error) {
+        performanceMonitor.endMeasurement(measurement);
+        console.error('Error initializing process node:', error);
+      }
     };
 
     initializeNode();
@@ -78,39 +113,73 @@ function ProcessNew({ data, selected }) {
     return () => {
       nodeDataManager.unregisterNode(currentNodeId);
     };
-  }, [currentNodeId, updateNodeData]);
+  }, [currentNodeId, updateNodeData, updateNode]);
 
-  // Listen to node data events
+  // Enhanced plugin error handling
+  const handlePluginError = useCallback((pluginName, error) => {
+    const pluginError = {
+      hasError: true,
+      errors: [{
+        code: `PLUGIN_${pluginName.toUpperCase()}_ERROR`,
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        context: { plugin: pluginName, nodeId: currentNodeId }
+      }]
+    };
+    
+    // Update error state through local state for immediate feedback
+    setLocalErrorState(pluginError);
+  }, [currentNodeId]);
+
+  // Listen to node data events (hybrid approach)
   useEffect(() => {
     const handleNodeDataUpdate = (event) => {
       if (event.detail.nodeId === currentNodeId) {
-        setNodeData(event.detail.nodeData);
-        setProcessingStatus(event.detail.nodeData.output.meta.status);
-        setErrorState(event.detail.nodeData.error.hasError ? event.detail.nodeData.error : null);
+        const updatedNodeData = event.detail.nodeData;
+        console.log(`[Process Node][${currentNodeId}] Event received - NODE_DATA_UPDATED:`, event.detail);
+        
+        // Update local state for immediate UI feedback
+        const newStatus = updatedNodeData.output?.meta?.status || 'idle';
+        setLocalProcessingStatus(newStatus);
+        
+        // Handle plugin-specific updates
+        if (updatedNodeData.plugin) {
+          console.log(`[Process Node][${currentNodeId}] Plugin updated:`, updatedNodeData.plugin);
+        }
+        
+        // Handle error state
+        if (updatedNodeData.error?.hasError) {
+          setLocalErrorState(updatedNodeData.error);
+        }
+        
+        console.log(`[Process Node][${currentNodeId}] Local state updated - Status: ${newStatus}`);
       }
     };
 
     const handleNodeProcessing = (event) => {
-      console.log("hanfleNodeProcessing Event ",event)
       if (event.detail.nodeId === currentNodeId) {
-        setProcessingStatus('processing');
+        setLocalProcessingStatus('processing');
+        console.log(`[Process Node][${currentNodeId}] Processing started`);
       }
     };
 
     const handleNodeProcessed = (event) => {
       if (event.detail.nodeId === currentNodeId) {
-        setProcessingStatus(event.detail.success ? 'success' : 'error');
+        const newStatus = event.detail.success ? 'success' : 'error';
+        setLocalProcessingStatus(newStatus);
+        console.log(`[Process Node][${currentNodeId}] Processing completed - Status: ${newStatus}`);
       }
     };
 
     const handleNodeError = (event) => {
       if (event.detail.nodeId === currentNodeId) {
-        setErrorState(event.detail.nodeData.error);
-        setProcessingStatus('error');
+        setLocalErrorState(event.detail.nodeData.error);
+        setLocalProcessingStatus('error');
+        console.log(`[Process Node][${currentNodeId}] Error occurred:`, event.detail.nodeData.error);
       }
     };
 
-    // Add event listeners
+    // Add event listeners (reduced to essential events)
     nodeDataManager.addEventListener(NodeDataEvents.NODE_DATA_UPDATED, handleNodeDataUpdate);
     nodeDataManager.addEventListener(NodeDataEvents.NODE_PROCESSING, handleNodeProcessing);
     nodeDataManager.addEventListener(NodeDataEvents.NODE_PROCESSED, handleNodeProcessed);
@@ -125,7 +194,7 @@ function ProcessNew({ data, selected }) {
     };
   }, [currentNodeId]);
 
-  // Handle plugin configuration
+  // Enhanced plugin configuration with FlowState
   const handlePluginConfig = useCallback(async (pluginName, config) => {
     if (!nodeData) return;
 
@@ -133,34 +202,50 @@ function ProcessNew({ data, selected }) {
       // Validate plugin configuration
       const validation = pluginRegistry.validatePluginConfig(pluginName, config);
       if (!validation.isValid) {
-        console.error('Plugin configuration validation failed:', validation.errors);
-        return;
+        throw new Error(`Plugin validation failed: ${validation.errors.join(', ')}`);
       }
 
-      // Update node data with new plugin configuration
+      // Set processing state through FlowState
+      setNodeProcessing(currentNodeId, true);
+
+      // Update plugin configuration through nodeDataManager with enhanced tracking
       await nodeDataManager.updateNodeData(currentNodeId, {
         plugin: {
           name: pluginName,
           config,
-          version: '1.0.0'
+          version: '1.0.0',
+          lastUpdated: new Date().toISOString()
         }
       }, true); // Trigger processing
 
     } catch (error) {
+      // Clear processing state on error
+      setNodeProcessing(currentNodeId, false);
+      
+      // Enhanced error handling
+      handlePluginError(pluginName, error);
       console.error('Error configuring plugin:', error);
     }
-  }, [currentNodeId, nodeData]);
+  }, [currentNodeId, nodeData, setNodeProcessing, handlePluginError]);
 
-  // Handle manual processing trigger
+  // Enhanced manual processing with FlowState integration
   const handleManualProcess = useCallback(async () => {
     if (!nodeData) return;
 
     try {
+      // Set processing state through FlowState
+      setNodeProcessing(currentNodeId, true);
+      
+      // Execute plugin processing
       await nodeDataManager.processNode(currentNodeId);
+      
+      // Processing completion will be handled by FlowState automatically
     } catch (error) {
+      // Clear processing state and handle errors
+      setNodeProcessing(currentNodeId, false);
       console.error('Error processing node:', error);
     }
-  }, [currentNodeId, nodeData]);
+  }, [currentNodeId, nodeData, setNodeProcessing]);
 
   // Get status color based on processing status
   const getStatusColor = () => {
@@ -261,6 +346,12 @@ function ProcessNew({ data, selected }) {
             {nodeData.plugin && (
               <div className="text-xs text-blue-600 truncate mt-1">
                 Plugin: {nodeData.plugin.name}
+                {/* Enhanced: Show plugin configuration status */}
+                {nodeData.plugin.lastUpdated && (
+                  <span className="ml-2 text-gray-500">
+                    (Updated: {new Date(nodeData.plugin.lastUpdated).toLocaleTimeString()})
+                  </span>
+                )}
               </div>
             )}
             
