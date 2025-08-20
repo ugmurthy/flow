@@ -11,6 +11,7 @@ import { useFlowState, useFlowStateNode, useFlowStateProcessing } from '../conte
 import { performanceMonitor } from '../utils/performanceMonitor.js';
 import MarkdownRenderer from './MarkdownRenderer';
 import ViewButton from '../components/ViewButton';
+import DownloadFile from './DownloadFile';
 import ButtonPanel from './ButtonPanel';
 
 function MarkdownNew({ data, selected }) {
@@ -261,8 +262,33 @@ function MarkdownNew({ data, selected }) {
       <ButtonPanel>
         <ViewButton
           data={`\`\`\`json\n${JSON.stringify(nodeData, null, 2)}\`\`\``}
-          title="Node Data (New Schema)"
+          title="View Data"
           className="hover:bg-gray-50"
+        />
+        <ViewButton
+          data={renderedContent}
+          title="View Markdown"
+          className="hover:bg-gray-50 text-blue-700"
+        />
+        <DownloadFile
+          content={renderedContent}
+          filename={(() => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            let displayHours = hours % 12 || 12;
+             displayHours = String(displayHours).padStart(2,"0");
+             const hhmm = `${displayHours}.${minutes}`
+            return `markdown-${year}-${month}-${day} at ${hhmm} ${ampm}.md`;
+          })()}
+          fileExtension="md"
+          mimeType="text/markdown"
+          title="Download markdown content"
+          className="p-1 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-gray-100"
         />
       </ButtonPanel>
 
