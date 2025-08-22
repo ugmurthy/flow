@@ -26,7 +26,7 @@ import ConfirmationDialog from './components/ConfirmationDialog.jsx';
 // Context imports
 import { ModalProvider } from './contexts/ModalContext.jsx';
 import { WorkflowProvider } from './contexts/WorkflowContext.jsx';
-import { GlobalProvider } from './contexts/GlobalContext.jsx';
+import { GlobalProvider, useGlobal } from './contexts/GlobalContext.jsx';
 import { FlowStateProvider } from './contexts/FlowStateContext.jsx';
 
 // Hook imports
@@ -128,6 +128,8 @@ function AppContent() {
  * Handles NodeDataManager and FlowState integration initialization
  */
 function ReactFlowEventHandlers() {
+  const { executeWorkflow } = useGlobal();
+
   // Initialize NodeDataManager and FlowState integration
   useEffect(() => {
     const initializeIntegration = async () => {
@@ -144,6 +146,12 @@ function ReactFlowEventHandlers() {
     
     initializeIntegration();
   }, []);
+
+  // Wire up GlobalContext with NodeDataManager whenever executeWorkflow changes
+  useEffect(() => {
+    nodeDataManager.setGlobalContext({ executeWorkflow });
+    console.log(`🔗 GlobalContext wired to NodeDataManager - ExecuteWorkflow: ${executeWorkflow}`);
+  }, [executeWorkflow]);
 
   return null; // This component only handles side effects
 }

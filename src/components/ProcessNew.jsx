@@ -144,7 +144,7 @@ function ProcessNew({ data, selected }) {
         
         // Handle plugin-specific updates
         if (updatedNodeData.plugin) {
-          console.log(`[Process Node][${currentNodeId}] Plugin updated:`, updatedNodeData.plugin);
+          console.log(`[Process Node][${currentNodeId}] Plugin:`, updatedNodeData.plugin);
         }
         
         // Handle error state

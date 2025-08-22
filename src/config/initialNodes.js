@@ -168,7 +168,7 @@ export const createLLMProcessNode = () => ({
         aggregationStrategy: DEFAULT_FORM_CONFIGS.aggregationStrategy,
         requiredInputs: ['prompt'],
         expectedDataTypes: ['object', 'string'],
-        allowMultipleConnections:true
+        allowMultipleConnections:false
       }
     },
     output: {
@@ -178,7 +178,7 @@ export const createLLMProcessNode = () => ({
       name: 'llm-processor',
       config: {
         ...DEFAULT_LLM_CONFIG,
-        model: 'gpt-oss',
+        model: 'llama3.2',
         inputCombinationStrategy: 'structured'
       }
     }

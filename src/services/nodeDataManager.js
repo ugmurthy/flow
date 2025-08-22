@@ -32,6 +32,7 @@ export class NodeDataManager extends EventTarget {
     this.updateCallbacks = new Map(); // nodeId -> callback function
     this.reactFlowCallbacks = null; // React Flow integration callbacks
     this.flowStateContext = null; // FlowStateContext integration
+    this.globalContext = null; // Global context for ExecuteWorkflow control
     this.initialized = false;
   }
 
@@ -43,7 +44,7 @@ export class NodeDataManager extends EventTarget {
    */
   setReactFlowCallbacks(callbacks) {
     this.reactFlowCallbacks = callbacks;
-    console.log('React Flow callbacks registered with NodeDataManager');
+    console.log('<core> nodeDataManager: React Flow callbacks registered with NodeDataManager');
   }
 
   /**
@@ -52,7 +53,16 @@ export class NodeDataManager extends EventTarget {
    */
   setFlowStateContext(flowStateContext) {
     this.flowStateContext = flowStateContext;
-    console.log('FlowStateContext registered with NodeDataManager');
+    console.log('<core> nodeDataManager: FlowStateContext registered with NodeDataManager');
+  }
+
+  /**
+   * Set Global Context for workflow execution control
+   * @param {Object} globalContext - Global context containing executeWorkflow flag
+   */
+  setGlobalContext(globalContext) {
+    this.globalContext = globalContext;
+    console.log('<core> nodeDataManager: ✅ Global context registered with NodeDataManager');
   }
 
   /**
@@ -63,13 +73,13 @@ export class NodeDataManager extends EventTarget {
       return;
     }
 
-    console.log('Initializing Node Data Manager...');
+    console.log('<core> nodeDataManager: Initializing Node Data Manager...');
     
     // Initialize plugin registry if not already done
     await pluginRegistry.initialize();
     
     this.initialized = true;
-    console.log('Node Data Manager initialized');
+    console.log('<core> nodeDataManager: Node Data Manager initialized');
   }
 
   /**
@@ -80,34 +90,13 @@ export class NodeDataManager extends EventTarget {
    */
   registerNode(nodeId, nodeData, updateCallback) {
     // Migrate old format to new format if needed
-      const migratedData = this._ensureNewFormat(nodeData);
-          
+    const migratedData = this._ensureNewFormat(nodeData);
       
-      
-          // // Add nodeData validation here using zod
-          // const validation = validateNodeData(migratedData);
-          // console.log("Validation returns ",validation)
-          // if (!validation.success) {
-          //   const errorMessage = createValidationErrorMessage(validation, `Node registration for ${nodeId}`);
-          //   console.error(errorMessage);
-          //   throw new Error(errorMessage);
-          // }
-          
-          // this.nodes.set(nodeId, validation.data);
-    
-    //this.nodes.set(nodeId,migratedData);
-    // changed migratedData to nodeData
     this.nodes.set(nodeId,nodeData);
     this.updateCallbacks.set(nodeId, updateCallback);
     
-    console.log(`Node ${nodeId} registered with new schema`);
+    console.log(`<core> nodeDataManager: Node ${nodeId} registered, dispatchEvent<NODE_DATA_UPDATED>`);
     
-    // Emit registration event
-    //this.dispatchEvent(new CustomEvent(NodeDataEvents.NODE_DATA_UPDATED, {
-    //  detail: { nodeId, nodeData: migratedData, action: 'registered' }
-    //}));
-
-    // changed migratedData to nodeData
     this.dispatchEvent(new CustomEvent(NodeDataEvents.NODE_DATA_UPDATED, {
       detail: { nodeId, nodeData: nodeData, action: 'registered' }
     }));
@@ -129,7 +118,7 @@ export class NodeDataManager extends EventTarget {
       }
     }
     
-    console.log(`Node ${nodeId} unregistered`);
+    console.log(`<core> nodeDataManager: Node ${nodeId} unregistered`);
   }
 
   /**
@@ -178,7 +167,7 @@ export class NodeDataManager extends EventTarget {
     //console.log("\n-------------------------------------------------------------------")
     //console.log("nodeDataManager:updateNodeData: updates : triggerProcessing ", triggerProcessing);
     //console.log("nodeDataManager:updateNodeData: updates : ",updates);
-    //console.log("nodeDataManager:updateNodeData: currentData : ",currentData)
+    console.log(`<core> nodeDataManager: updates to ${nodeId} : ${JSON.stringify(updates,null,2)}`)
     const updatedData = NodeData.update(currentData, updates);
     this.nodes.set(nodeId, updatedData);
     //console.log("nodeDataManager:updateNodeData: updatedData: ",updatedData)
@@ -209,10 +198,11 @@ export class NodeDataManager extends EventTarget {
 
     // Trigger processing if requested
     if (triggerProcessing) {
+      console.log(`<core> nodeDataManager: Node ${nodeId} triggering processNode`)
       await this.processNode(nodeId);
     }
 
-    console.log(`Node ${nodeId} data updated and synced with FlowStateContext`);
+    console.log(`<core> nodeDataManager: Node ${nodeId} data updated and synced with FlowStateContext`);
   }
 
   /**
@@ -225,7 +215,7 @@ export class NodeDataManager extends EventTarget {
    */
   async addConnection(sourceNodeId, targetNodeId, sourceHandle = 'default', targetHandle = 'default', edgeId) {
     const connectionId = `${sourceNodeId}-${targetNodeId}-${sourceHandle}-${targetHandle}`;
-    console.log("addConnection", connectionId);
+    console.log("<core> nodeDataManager: addConnection", connectionId);
     
     // Get target node data to check connection policy
     const targetData = this.nodes.get(targetNodeId);
@@ -236,12 +226,12 @@ export class NodeDataManager extends EventTarget {
 
     // Check if multiple connections are allowed
     const allowMultipleConnections = targetData.input?.config?.allowMultipleConnections || false;
-    
+    console.log("<core> nodeDataManager: addConnection: multiConnection? ", allowMultipleConnections);
     // If single connection mode and target already has connections, remove old ones
     if (!allowMultipleConnections && targetData.input?.connections) {
       const existingConnections = Object.keys(targetData.input.connections);
       if (existingConnections.length > 0) {
-        console.log(`Single connection mode: removing ${existingConnections.length} existing connections`);
+        console.log(`<core> nodeDataManager: Single connection mode: removing ${existingConnections.length} existing connections`);
         
         // Remove old connections and their React Flow edges
         for (const oldConnectionId of existingConnections) {
@@ -250,7 +240,7 @@ export class NodeDataManager extends EventTarget {
             // Remove React Flow edge if callback is available
             if (this.reactFlowCallbacks?.removeEdge && oldConnection.edgeId) {
               this.reactFlowCallbacks.removeEdge(oldConnection.edgeId);
-              console.log(`Removed React Flow edge: ${oldConnection.edgeId}`);
+              console.log(`<core> nodeDataManager: Removed React Flow edge: ${oldConnection.edgeId}`);
             }
             
             // Remove from connections map
@@ -307,14 +297,15 @@ export class NodeDataManager extends EventTarget {
     }
 
     // Emit connection event
+    console.log("<core> nodeDataManager: addConnection dispatchEvent <CONNECTION_ADDED>\n" );
     this.dispatchEvent(new CustomEvent(NodeDataEvents.CONNECTION_ADDED, {
       detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle, replaced: !allowMultipleConnections }
     }));
 
     // Trigger processing of target node
-    await this.processNode(targetNodeId);
+    // await this.processNode(targetNodeId);
 
-    console.log(`Connection added: ${sourceNodeId} -> ${targetNodeId} (multiple: ${allowMultipleConnections})`);
+    console.log(`<core> nodeDataManager: Connection added: ${sourceNodeId} -> ${targetNodeId} (multiple: ${allowMultipleConnections})`);
   }
 
   /**
@@ -346,7 +337,7 @@ export class NodeDataManager extends EventTarget {
         }
       });
       
-      console.log(`Removed connection ${connectionId} from target node ${targetNodeId}`);
+      console.log(`<core> nodeDataManager: Removed connection ${connectionId} from target node ${targetNodeId}`);
     }
 
     // Emit connection removed event
@@ -354,7 +345,7 @@ export class NodeDataManager extends EventTarget {
       detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle, connectionInfo }
     }));
 
-    console.log(`Connection removed: ${sourceNodeId} -> ${targetNodeId}`);
+    console.log(`<core> nodeDataManager: Connection removed: ${sourceNodeId} -> ${targetNodeId}`);
   }
 
   /**
@@ -385,7 +376,7 @@ export class NodeDataManager extends EventTarget {
         connectionToRemove.sourceHandle,
         connectionToRemove.targetHandle
       );
-      console.log(`Connection removed by edge ID: ${edgeId}`);
+      console.log(`<core> nodeDataManager: Connection removed by edge ID: ${edgeId}`);
     } else {
       console.warn(`No connection found for edge ID: ${edgeId}`);
     }
@@ -410,7 +401,7 @@ export class NodeDataManager extends EventTarget {
    * @param {string} nodeId - Node ID
    */
   async processNode(nodeId) {
-    console.log(`processNode ${nodeId}`)
+    console.log(`<core> nodeDataManager: processNode ${nodeId}`)
     const nodeData = this.nodes.get(nodeId);
     if (!nodeData) {
       console.warn(`Node ${nodeId} not found for processing`);
@@ -419,7 +410,7 @@ export class NodeDataManager extends EventTarget {
 
     // Prevent concurrent processing of the same node
     if (this.processingQueue.has(nodeId)) {
-      console.log(`Node ${nodeId} is already being processed`);
+      console.log(`<core> nodeDataManager: Node ${nodeId} is already being processed`);
       return;
     }
     //console.log("processNode : Calling this._doProcessNode")
@@ -443,7 +434,7 @@ export class NodeDataManager extends EventTarget {
       if (nodeData.meta.category === 'input' && 
           nodeData.output.data && 
           Object.keys(nodeData.output.data).length > 0) {
-        console.log(`Skipping processing for input node ${nodeId} - has user data`);
+        console.log(`<core> nodeDataManager: Skipping processing for input node ${nodeId} - has user data`);
         return;
       }
       // Set processing status
@@ -630,6 +621,16 @@ export class NodeDataManager extends EventTarget {
    * @private
    */
   async _triggerDownstreamProcessing(nodeId) {
+    // NON-BREAKING: Check ExecuteWorkflow flag, default to true if not configured
+    const executeWorkflow = this.globalContext?.executeWorkflow ?? true;
+    
+    if (!executeWorkflow) {
+      console.log(`<core> nodeDataManager: ⏸️ Workflow execution paused - skipping downstream processing for ${nodeId}`);
+      this._emitWorkflowPausedEvent(nodeId);
+      return;
+    }
+
+    console.log(`<core> nodeDataManager: ▶️ Executing downstream processing for ${nodeId}`);
     const downstreamNodes = [];
     
     // Find nodes that have this node as input
@@ -640,11 +641,25 @@ export class NodeDataManager extends EventTarget {
     }
 
     // Process downstream nodes
-    const processingPromises = downstreamNodes.map(targetNodeId => 
+    const processingPromises = downstreamNodes.map(targetNodeId =>
       this.processNode(targetNodeId)
     );
 
     await Promise.all(processingPromises);
+  }
+
+  /**
+   * Emit workflow paused event for monitoring and UI feedback
+   * @private
+   */
+  _emitWorkflowPausedEvent(nodeId) {
+    this.dispatchEvent(new CustomEvent('WORKFLOW_EXECUTION_PAUSED', {
+      detail: {
+        nodeId,
+        timestamp: new Date().toISOString(),
+        reason: 'executeWorkflow_disabled'
+      }
+    }));
   }
 
   /**
@@ -687,7 +702,7 @@ export class NodeDataManager extends EventTarget {
     }
 
     // Migrate from old format
-    console.log('Migrating node data from old format to new format');
+    console.log('<core> nodeDataManager: Migrating node data from old format to new format');
     return SchemaMigration.migrateFromOldFormat(nodeData);
   }
 
@@ -740,7 +755,7 @@ export class NodeDataManager extends EventTarget {
     this.updateCallbacks.clear();
     
     this.initialized = false;
-    console.log('Node Data Manager cleaned up');
+    console.log('<core> nodeDataManager: Node Data Manager cleaned up');
   }
 }
 
