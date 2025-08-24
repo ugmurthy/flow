@@ -8,6 +8,7 @@ import { NodeData, ConnectionData, SchemaMigration, DataDirective } from '../typ
 import { ProcessingInput, PluginContext } from '../types/pluginSystem.js';
 import { validateNodeData, validateNodeDataUpdates, createValidationErrorMessage, validateInput} from '../types/nodeDataValidation.js';
 import { DirectiveValidator } from '../types/enhancedValidation.js';
+import { DirectiveProcessor } from './directiveProcessor.js';
 import pluginRegistry from './pluginRegistry.js';
 /**
  * Event types for node data changes
@@ -34,6 +35,7 @@ export class NodeDataManager extends EventTarget {
     this.reactFlowCallbacks = null; // React Flow integration callbacks
     this.flowStateContext = null; // FlowStateContext integration
     this.globalContext = null; // Global context for ExecuteWorkflow control
+    this.directiveProcessor = null; // DirectiveProcessor instance
     this.initialized = false;
   }
 
@@ -78,6 +80,10 @@ export class NodeDataManager extends EventTarget {
     
     // Initialize plugin registry if not already done
     await pluginRegistry.initialize();
+    
+    // Initialize directive processor
+    this.directiveProcessor = new DirectiveProcessor(this);
+    console.log('<core> nodeDataManager: DirectiveProcessor initialized');
     
     this.initialized = true;
     console.log('<core> nodeDataManager: Node Data Manager initialized');
@@ -482,7 +488,12 @@ export class NodeDataManager extends EventTarget {
       const outputDirectives = nodeData.output?.directives;
       if (outputDirectives && Object.keys(outputDirectives).length > 0) {
         console.log(`<core> nodeDataManager: Processing directives from ${nodeId}`);
-        await this.processDirectives(nodeId, outputDirectives);
+        if (this.directiveProcessor) {
+          await this.directiveProcessor.processDirectives(nodeId, outputDirectives);
+        } else {
+          // Fallback to legacy directive processing
+          await this.processDirectives(nodeId, outputDirectives);
+        }
       }
 
       // Emit processing completed event
@@ -921,12 +932,13 @@ export class NodeDataManager extends EventTarget {
   }
 
   /**
-   * Process data directives for cross-node communication
+   * Process data directives for cross-node communication (Legacy method)
    * @param {string} nodeId - Node ID that generated directives
    * @param {Object} directives - Directives to process
+   * @deprecated Use DirectiveProcessor instead
    */
   async processDirectives(nodeId, directives) {
-    console.log(`<core> nodeDataManager: Processing directives from ${nodeId}`, Object.keys(directives));
+    console.log(`<core> nodeDataManager: Processing directives from ${nodeId} (legacy method)`, Object.keys(directives));
     
     for (const [targetNodeId, nodeDirectives] of Object.entries(directives)) {
       if (Array.isArray(nodeDirectives)) {
@@ -1129,6 +1141,12 @@ export class NodeDataManager extends EventTarget {
       } catch (error) {
         console.warn(`Error during cleanup of node ${nodeId}:`, error);
       }
+    }
+
+    // Cleanup directive processor
+    if (this.directiveProcessor) {
+      await this.directiveProcessor.cleanup();
+      this.directiveProcessor = null;
     }
 
     // Clear all data

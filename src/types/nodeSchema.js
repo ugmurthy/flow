@@ -552,10 +552,10 @@ export const NodeData = {
 
     // === ENHANCED ERROR HANDLING ===
     error: {
-      hasError: false,
-      errors: [],
-      warnings: [],
-      recoveryActions: []
+      hasError: config.error?.hasError || false,
+      errors: config.error?.errors || [],
+      warnings: config.error?.warnings || [],
+      recoveryActions: config.error?.recoveryActions || []
     },
 
     // === ENHANCED PLUGIN SYSTEM ===
