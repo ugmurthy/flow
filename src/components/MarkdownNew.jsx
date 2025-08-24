@@ -3,16 +3,106 @@
  * Uses the new NodeData schema and event-driven updates
  */
 
-import React, { memo, useEffect, useState, useCallback } from 'react';
+import React, { memo, useEffect, useState, useCallback, useRef, Component } from 'react';
 import { Handle, Position, useNodeId, useReactFlow } from '@xyflow/react';
-import { OutputNodeData } from '../types/nodeSchema.js';
+import { OutputNodeData, NodeVisualState, HandleConfiguration } from '../types/nodeSchema.js';
 import nodeDataManager, { NodeDataEvents } from '../services/nodeDataManager.js';
+import { DirectiveProcessor } from '../services/directiveProcessor.js';
+import { globalStyleManager } from '../styles/nodeStyleManager.js';
 import { useFlowState, useFlowStateNode, useFlowStateProcessing } from '../contexts/FlowStateContext.jsx';
 import { performanceMonitor } from '../utils/performanceMonitor.js';
 import MarkdownRenderer from './MarkdownRenderer';
 import ViewButton from '../components/ViewButton';
 import DownloadFile from './DownloadFile';
 import ButtonPanel from './ButtonPanel';
+
+/**
+ * Enhanced Error Boundary for MarkdownNew Node
+ * Provides comprehensive error handling with recovery mechanisms
+ */
+class MarkdownNewErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      retryCount: 0
+    };
+    this.maxRetries = 3;
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[MarkdownNew] Error caught by boundary:', error, errorInfo);
+    
+    this.setState({
+      error,
+      errorInfo,
+      hasError: true
+    });
+
+    // Report to performance monitor
+    if (this.props.nodeId) {
+      performanceMonitor.recordError(`markdownNew-${this.props.nodeId}`, error.message, {
+        componentStack: errorInfo.componentStack,
+        retryCount: this.state.retryCount,
+        contentLength: this.props.contentLength || 0
+      });
+    }
+  }
+
+  handleRetry = () => {
+    if (this.state.retryCount < this.maxRetries) {
+      this.setState(prevState => ({
+        hasError: false,
+        error: null,
+        errorInfo: null,
+        retryCount: prevState.retryCount + 1
+      }));
+      console.log(`[MarkdownNew] Retrying component (${this.state.retryCount + 1}/${this.maxRetries})`);
+    }
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="px-4 py-3 shadow-md rounded-lg border-2 border-red-400 bg-red-50 min-w-[300px]">
+          <div className="text-red-800 font-bold text-sm">⚠️ Markdown Node Error</div>
+          <div className="text-red-600 text-xs mt-1">
+            {this.state.error?.message || 'Unknown error occurred'}
+          </div>
+          {this.props.contentLength > 0 && (
+            <div className="text-red-500 text-xs mt-1">
+              Content Length: {this.props.contentLength} characters
+            </div>
+          )}
+          <div className="mt-2 flex gap-2">
+            {this.state.retryCount < this.maxRetries && (
+              <button
+                onClick={this.handleRetry}
+                className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+              >
+                Retry ({this.state.retryCount + 1}/{this.maxRetries})
+              </button>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function MarkdownNew({ data, selected }) {
   const { updateNodeData } = useReactFlow();
@@ -26,34 +116,160 @@ function MarkdownNew({ data, selected }) {
   // Local state for UI-specific data
   const [localProcessingStatus, setLocalProcessingStatus] = useState('idle');
   const [renderedContent, setRenderedContent] = useState('');
+  
+  // Enhanced state for new features
+  const [currentVisualState, setCurrentVisualState] = useState('default');
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    renderTime: 0,
+    updateCount: 0,
+    errorCount: 0,
+    lastUpdate: null,
+    contentLength: 0,
+    renderingTime: 0
+  });
+  const [directiveProcessingStatus, setDirectiveProcessingStatus] = useState({
+    processing: false,
+    lastProcessed: null,
+    totalProcessed: 0,
+    errors: []
+  });
+  const [contentMetrics, setContentMetrics] = useState({
+    wordCount: 0,
+    characterCount: 0,
+    lineCount: 0,
+    lastRendered: null
+  });
+
+  // Refs for performance tracking and enhanced functionality
+  const renderStartTime = useRef(performance.now());
+  const directiveProcessorRef = useRef(null);
+  const styleManagerRef = useRef(globalStyleManager);
+  const contentRenderStartTime = useRef(null);
 
   // Derived state
   const isProcessing = processingNodes.has(currentNodeId);
   const processingStatus = isProcessing ? 'processing' :
     (nodeData?.output?.meta?.status || localProcessingStatus);
 
-  // Initialize node with new schema
+  // Get computed styles from NodeStyleManager
+  const computedStyles = styleManagerRef.current.getNodeStyle(
+    nodeData || {},
+    currentVisualState,
+    { selected }
+  );
+
+  // Get handle styles
+  const inputHandleStyles = styleManagerRef.current.getHandleStyle(
+    nodeData || {},
+    'input',
+    'content-in'
+  );
+
+  // Enhanced Performance monitoring effect - FIXED: Removed circular dependency
   useEffect(() => {
+    const renderEndTime = performance.now();
+    const renderTime = renderEndTime - renderStartTime.current;
+    
+    setPerformanceMetrics(prev => {
+      const newUpdateCount = prev.updateCount + 1;
+      
+      // DIAGNOSTIC: Check for runaway performance monitoring
+      if (newUpdateCount > 100) {
+        console.error(`[MARKDOWN PERFORMANCE LOOP DETECTED][${currentNodeId}] Update count exceeded 100:`, newUpdateCount);
+        console.error('[MARKDOWN PERFORMANCE STACK TRACE]', new Error().stack);
+        return prev; // Don't update if we're in a loop
+      }
+      
+      // Track performance metrics (reduce frequency to prevent loops)
+      if (newUpdateCount % 5 === 0) {
+        performanceMonitor.recordMetric(`markdownNew-${currentNodeId}`, 'renderTime', renderTime);
+        performanceMonitor.recordMetric(`markdownNew-${currentNodeId}`, 'contentLength', renderedContent.length);
+      }
+      
+      return {
+        ...prev,
+        renderTime,
+        updateCount: newUpdateCount,
+        lastUpdate: new Date().toISOString(),
+        contentLength: renderedContent.length
+      };
+    });
+    
+    // Reset render start time for next render
+    renderStartTime.current = performance.now();
+  }, [currentNodeId, renderedContent.length]); // FIXED: Only depend on stable values, not the metrics we're updating
+
+  // Initialize node with enhanced schema and directive processing - FIXED: Added initialization guard
+  useEffect(() => {
+    console.log(`[MARKDOWN INIT DEBUG][${currentNodeId}] Initialization effect triggered - nodeData exists:`, !!nodeData, 'hasVersion:', !!(nodeData?.meta?.version));
+    
+    // FIXED: Add initialization guard to prevent re-initialization
+    if (nodeData && nodeData.meta && nodeData.meta.version) {
+      console.log(`[MARKDOWN INIT DEBUG][${currentNodeId}] Node already initialized with version:`, nodeData.meta.version, '- skipping');
+      return;
+    }
+    
     const initializeNode = async () => {
+      console.log(`[MARKDOWN INIT DEBUG][${currentNodeId}] Starting node initialization`);
       const measurement = performanceMonitor.startMeasurement('nodeInitialization');
       
       try {
         // Ensure node data manager is initialized
         await nodeDataManager.initialize();
 
+        // Initialize directive processor
+        directiveProcessorRef.current = new DirectiveProcessor(nodeDataManager);
+
         // Convert old data format to new schema if needed
         let newNodeData;
         if (data.meta && data.input && data.output && data.error) {
-          // Already in new format
-          newNodeData = data;
+          // Already in new format, but ensure it has styling configuration
+          newNodeData = {
+            ...data,
+            styling: data.styling || {
+              states: {
+                default: NodeVisualState.create(),
+                processing: NodeVisualState.create({
+                  container: { borderColor: '#f59e0b', backgroundColor: '#fef3c7' }
+                }),
+                success: NodeVisualState.create({
+                  container: { borderColor: '#10b981', backgroundColor: '#d1fae5' }
+                }),
+                error: NodeVisualState.create({
+                  container: { borderColor: '#ef4444', backgroundColor: '#fee2e2' }
+                }),
+                rendering: NodeVisualState.create({
+                  container: { borderColor: '#8b5cf6', backgroundColor: '#f3e8ff' }
+                })
+              },
+              handles: {
+                input: [
+                  HandleConfiguration.create({
+                    id: 'content-in',
+                    type: 'target',
+                    position: 'left',
+                    behavior: {
+                      allowMultipleConnections: true,
+                      acceptedDataTypes: ['string', 'object']
+                    }
+                  })
+                ]
+              },
+              theme: 'default'
+            }
+          };
         } else {
           // Convert from old format
           newNodeData = OutputNodeData.create({
             meta: {
               label: data.label || 'Markdown Display',
-              function: data.function || 'Renderer',
+              function: data.function || 'Enhanced Markdown Renderer',
               emoji: data.emoji || '📝',
-              description: 'Renders markdown content with syntax highlighting'
+              description: 'Renders markdown content with enhanced directive processing and performance monitoring',
+              category: 'output',
+              capabilities: ['markdown-rendering', 'content-display', 'directive-processing'],
+              tags: ['markdown', 'display', 'enhanced'],
+              version: '2.0.0'
             },
             input: {
               config: {
@@ -64,6 +280,17 @@ function MarkdownNew({ data, selected }) {
                   textColor: '#374151',
                   fontSize: '14px'
                 }
+              },
+              processed: {
+                aggregated: {},
+                byConnection: {},
+                strategy: 'latest',
+                meta: {
+                  lastAggregated: new Date().toISOString(),
+                  connectionCount: 0,
+                  totalDataSize: 0,
+                  aggregationMethod: 'latest'
+                }
               }
             },
             output: {
@@ -71,12 +298,55 @@ function MarkdownNew({ data, selected }) {
                 content: data.content || '',
                 renderedHtml: '',
                 wordCount: 0,
+                characterCount: 0,
                 lastUpdated: new Date().toISOString()
+              },
+              directives: {},
+              meta: {
+                timestamp: new Date().toISOString(),
+                status: 'idle'
               }
+            },
+            styling: {
+              states: {
+                default: NodeVisualState.create(),
+                processing: NodeVisualState.create({
+                  container: { borderColor: '#f59e0b', backgroundColor: '#fef3c7' }
+                }),
+                success: NodeVisualState.create({
+                  container: { borderColor: '#10b981', backgroundColor: '#d1fae5' }
+                }),
+                error: NodeVisualState.create({
+                  container: { borderColor: '#ef4444', backgroundColor: '#fee2e2' }
+                }),
+                rendering: NodeVisualState.create({
+                  container: { borderColor: '#8b5cf6', backgroundColor: '#f3e8ff' }
+                })
+              },
+              handles: {
+                input: [
+                  HandleConfiguration.create({
+                    id: 'content-in',
+                    type: 'target',
+                    position: 'left',
+                    behavior: {
+                      allowMultipleConnections: true,
+                      acceptedDataTypes: ['string', 'object']
+                    }
+                  })
+                ]
+              },
+              theme: 'default'
             }
           });
         }
 
+        // DIAGNOSTIC: Log the update process to detect circular updates
+        console.log(`[MARKDOWN CIRCULAR DEBUG][${currentNodeId}] About to update FlowState - current nodeData version:`, nodeData?.meta?.version, 'new version:', newNodeData.meta.version);
+        
+        // DIAGNOSTIC: Add delay and check before FlowState update
+        console.log(`[MARKDOWN CIRCULAR DEBUG][${currentNodeId}] About to call flowState.updateNode`);
+        
         // Update FlowState with new node data
         flowState.updateNode(currentNodeId, {
           id: currentNodeId,
@@ -84,12 +354,24 @@ function MarkdownNew({ data, selected }) {
           position: { x: 0, y: 0 }, // Will be updated by React Flow
           data: newNodeData,
         });
+        
+        console.log(`[MARKDOWN CIRCULAR DEBUG][${currentNodeId}] FlowState update completed`);
 
         // Initialize local state
-        setRenderedContent(newNodeData.output.data.content || '');
+        const initialContent = newNodeData.output.data.content || '';
+        setRenderedContent(initialContent);
         setLocalProcessingStatus(newNodeData.output?.meta?.status || 'idle');
+        setCurrentVisualState(initialContent ? 'success' : 'default');
 
-        //console.log(`[Markdown Node] Node ${currentNodeId} initialized with FlowState integration`);
+        // Initialize content metrics
+        setContentMetrics({
+          wordCount: initialContent.split(/\s+/).filter(word => word.length > 0).length,
+          characterCount: initialContent.length,
+          lineCount: initialContent.split('\n').length,
+          lastRendered: new Date().toISOString()
+        });
+
+        console.log(`[Markdown Node] Node ${currentNodeId} initialized with enhanced schema and directive processing`);
 
         // Register with node data manager with optimized callback
         const safeUpdateNodeData = (updateNodeId, updates) => {
@@ -104,7 +386,8 @@ function MarkdownNew({ data, selected }) {
         performanceMonitor.endMeasurement(measurement);
       } catch (error) {
         performanceMonitor.endMeasurement(measurement);
-        console.error('Error initializing markdown node:', error);
+        console.error('Error initializing enhanced markdown node:', error);
+        setPerformanceMetrics(prev => ({ ...prev, errorCount: prev.errorCount + 1 }));
       }
     };
 
@@ -113,8 +396,11 @@ function MarkdownNew({ data, selected }) {
     // Cleanup on unmount
     return () => {
       nodeDataManager.unregisterNode(currentNodeId);
+      if (directiveProcessorRef.current) {
+        directiveProcessorRef.current.cleanup();
+      }
     };
-  }, [currentNodeId, updateNodeData]);
+  }, [currentNodeId]); // FIXED: Removed circular dependencies that were causing re-initialization
 
   // Update rendered content based on input data
   const updateRenderedContent = useCallback(async (updatedNodeData, skipNodeDataUpdate = false) => {
@@ -182,6 +468,38 @@ function MarkdownNew({ data, selected }) {
       // Update the node data in the manager
       // FlowStateContext will be automatically synced via NodeDataManager
       nodeDataManager.nodes.set(currentNodeId, updatedData);
+    }
+  }, [currentNodeId]);
+
+  // Directive processing function
+  const processDirectives = useCallback(async (directives) => {
+    if (!directiveProcessorRef.current || !directives || Object.keys(directives).length === 0) {
+      return;
+    }
+
+    setDirectiveProcessingStatus(prev => ({ ...prev, processing: true }));
+    
+    try {
+      // Process directives using the directive processor
+      const results = await directiveProcessorRef.current.processDirectives(currentNodeId, { [currentNodeId]: Object.values(directives) });
+      
+      setDirectiveProcessingStatus(prev => ({
+        ...prev,
+        processing: false,
+        lastProcessed: new Date().toISOString(),
+        totalProcessed: prev.totalProcessed + results.totalDirectives,
+        errors: results.failed > 0 ? [...prev.errors, `${results.failed} directives failed`] : prev.errors
+      }));
+
+      console.log(`[Markdown Node][${currentNodeId}] Processed ${results.totalDirectives} directives:`, results);
+    } catch (error) {
+      console.error(`[Markdown Node][${currentNodeId}] Directive processing failed:`, error);
+      
+      setDirectiveProcessingStatus(prev => ({
+        ...prev,
+        processing: false,
+        errors: [...prev.errors, error.message]
+      }));
     }
   }, [currentNodeId]);
 
@@ -381,4 +699,16 @@ function MarkdownNew({ data, selected }) {
   );
 }
 
-export default memo(MarkdownNew);
+// Enhanced Markdown Node with Error Boundary
+function EnhancedMarkdownNew(props) {
+  return (
+    <MarkdownNewErrorBoundary
+      nodeId={props.data?.nodeId || 'unknown'}
+      contentLength={props.data?.output?.data?.content?.length || 0}
+    >
+      <MarkdownNew {...props} />
+    </MarkdownNewErrorBoundary>
+  );
+}
+
+export default memo(EnhancedMarkdownNew);
