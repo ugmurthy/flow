@@ -210,9 +210,20 @@ function TemplateFormNode({ data }) {
         // Convert old data format to new schema if needed
         let newNodeData;
         if (data.meta && data.input && data.output && data.error) {
-          // Already in new format, but ensure it has styling configuration
+          // Already in new format, but ensure it has styling configuration and formFields
           newNodeData = {
             ...data,
+            // Ensure formFields are preserved in the correct location
+            input: {
+              ...data.input,
+              formFields: data.input?.formFields || data.formFields || [],
+              config: {
+                ...data.input?.config,
+                formFields: data.input?.config?.formFields || data.input?.formFields || data.formFields || []
+              }
+            },
+            // Also keep formFields at root level for backward compatibility
+            formFields: data.input?.formFields || data.formFields || [],
             styling: data.styling || {
               states: {
                 default: NodeVisualState.create(),
@@ -558,8 +569,21 @@ function TemplateFormNode({ data }) {
   const handleOpenModal = useCallback(() => {
     if (!nodeData) return;
 
+    // Try multiple possible locations for formFields to ensure compatibility
+    const formFields = nodeData.input?.formFields ||
+                      nodeData.input?.config?.formFields ||
+                      nodeData.formFields ||
+                      [];
+
+    console.log(`[Form Node][${nodeId}] Opening modal with formFields:`, formFields);
+    console.log(`[Form Node][${nodeId}] NodeData structure:`, {
+      hasInputFormFields: !!nodeData.input?.formFields,
+      hasInputConfigFormFields: !!nodeData.input?.config?.formFields,
+      hasRootFormFields: !!nodeData.formFields
+    });
+
     openModal(MODAL_TYPES.FORM_EDIT, {
-      formFields: nodeData.input.config.formFields || [],
+      formFields,
       defaultValues: nodeData.output.data || {},
       isSubmitting,
       onSubmit: async (formData) => {
