@@ -35,3 +35,24 @@ global.testUtils = {
 if (typeof window !== 'undefined') {
   // DOM-specific setup can go here
 }
+
+// Mock process for jsdom environment to prevent "process is not defined" errors
+// This is needed because some modules check for process.env during import
+if (typeof process === 'undefined') {
+  global.process = {
+    env: {
+      NODE_ENV: 'test'
+    },
+    platform: 'darwin',
+    version: 'v16.0.0',
+    versions: {},
+    nextTick: (fn) => setTimeout(fn, 0),
+    cwd: () => '/',
+    pid: 12345,
+    ppid: 12344,
+    title: 'vitest'
+  };
+}
+
+// Ensure process is always available in the global scope
+globalThis.process = globalThis.process || global.process;

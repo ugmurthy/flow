@@ -5,11 +5,12 @@
  */
 
 import { BasePlugin, ProcessingInput, ProcessingOutput, ValidationResult } from '../types/pluginSystem.js';
+import { EnhancedPlugin } from '../types/enhancedPluginSystem.js';
 
 /**
  * Data Transformer Plugin Implementation
  */
-export class DataTransformerPlugin extends BasePlugin {
+export class DataTransformerPlugin extends EnhancedPlugin {
   constructor() {
     super(
       'data-transformer',
@@ -29,6 +30,18 @@ export class DataTransformerPlugin extends BasePlugin {
       'format',
       'aggregate'
     ];
+
+    // Enhanced plugin properties
+    this.multiConnectionSupport = true;
+    this.supportedAggregationStrategies = ['merge', 'array', 'priority', 'latest', 'custom'];
+    this.resourceRequirements = {
+      maxMemory: '500MB',
+      maxCPU: '30%',
+      maxDiskSpace: '50MB',
+      maxNetworkRequests: 0,
+      requiredAPIs: [],
+      environmentVariables: []
+    };
   }
 
   /**
@@ -101,7 +114,10 @@ export class DataTransformerPlugin extends BasePlugin {
       'data-validation',
       'data-formatting',
       'data-aggregation',
-      'custom-functions'
+      'custom-functions',
+      'multi-connection-processing',
+      'input-aggregation',
+      'connection-aware-processing'
     ];
   }
 
@@ -647,6 +663,124 @@ export class DataTransformerPlugin extends BasePlugin {
       default:
         return result;
     }
+  }
+
+  /**
+   * Process multiple connections with enhanced aggregation
+   * @protected
+   */
+  async _doProcessConnections(aggregatedInputs, context, connectionMetadata) {
+    // Enhanced processing that's aware of connection metadata
+    const enhancedConfig = {
+      ...this.config,
+      ...context.config,
+      connectionMetadata,
+      totalConnections: Object.keys(connectionMetadata).length
+    };
+
+    // Add connection-aware metadata to processing
+    const result = await this._doProcess(aggregatedInputs, enhancedConfig, context);
+    
+    // Enhance result with connection information
+    if (result.meta) {
+      result.meta.connectionInfo = {
+        totalConnections: Object.keys(connectionMetadata).length,
+        connectionSizes: Object.values(connectionMetadata).map(meta => meta.inputCount),
+        totalDataSize: Object.values(connectionMetadata).reduce((sum, meta) => sum + meta.totalSize, 0)
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Custom aggregation strategy for data transformer
+   * @protected
+   */
+  async _aggregateCustom(inputs, context) {
+    const { customAggregationFunction } = context.config || {};
+    
+    if (customAggregationFunction && typeof customAggregationFunction === 'string') {
+      try {
+        const aggregationFn = new Function('inputs', 'context', customAggregationFunction);
+        const result = aggregationFn(inputs, context);
+        
+        return Array.isArray(result) ? result : [ProcessingInput.create({
+          sourceId: 'custom-aggregated',
+          data: result,
+          meta: {
+            aggregationStrategy: 'custom',
+            customFunction: customAggregationFunction,
+            timestamp: new Date().toISOString()
+          }
+        })];
+      } catch (error) {
+        console.warn('Custom aggregation function failed, falling back to merge:', error.message);
+        return this._aggregateMerge(inputs);
+      }
+    }
+
+    // Fallback to merge if no custom function
+    return this._aggregateMerge(inputs);
+  }
+
+  /**
+   * Enhanced configuration schema with multi-connection support
+   */
+  getConfigSchema() {
+    const baseSchema = super.getConfigSchema();
+    
+    // Add multi-connection specific properties
+    baseSchema.properties.aggregationStrategy = {
+      type: 'string',
+      enum: this.supportedAggregationStrategies,
+      default: 'merge',
+      description: 'Strategy for aggregating inputs from multiple connections'
+    };
+
+    baseSchema.properties.customAggregationFunction = {
+      type: 'string',
+      description: 'Custom JavaScript function for aggregating multiple connection inputs'
+    };
+
+    baseSchema.properties.connectionAware = {
+      type: 'boolean',
+      default: true,
+      description: 'Whether to include connection metadata in processing'
+    };
+
+    return baseSchema;
+  }
+
+  /**
+   * Enhanced validation with multi-connection support
+   */
+  validateConfig(config) {
+    const baseValidation = super.validateConfig(config);
+    if (!baseValidation.isValid) {
+      return baseValidation;
+    }
+
+    const errors = [];
+    const warnings = [];
+
+    // Validate aggregation strategy
+    if (config.aggregationStrategy && !this.supportedAggregationStrategies.includes(config.aggregationStrategy)) {
+      errors.push(`Unsupported aggregation strategy: ${config.aggregationStrategy}. Supported: ${this.supportedAggregationStrategies.join(', ')}`);
+    }
+
+    // Validate custom aggregation function
+    if (config.customAggregationFunction && typeof config.customAggregationFunction === 'string') {
+      try {
+        new Function('inputs', 'context', config.customAggregationFunction);
+      } catch (error) {
+        errors.push(`Invalid custom aggregation function: ${error.message}`);
+      }
+    }
+
+    return errors.length === 0
+      ? (warnings.length > 0 ? ValidationResult.warning(warnings) : ValidationResult.success())
+      : ValidationResult.error(errors);
   }
 
   /**
