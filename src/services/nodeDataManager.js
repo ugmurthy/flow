@@ -182,6 +182,7 @@ export class NodeDataManager extends EventTarget {
     // Update React Flow node
     const updateCallback = this.updateCallbacks.get(nodeId);
     if (updateCallback) {
+      console.log(`<core> nodeDataManager: Node ${nodeId}  updateCallback - update react flow`)
       updateCallback(nodeId, updatedData);
     }
 

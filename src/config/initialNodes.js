@@ -65,9 +65,8 @@ export const createEnhancedFormNode = () => ({
           maxConnections: 2, // Allow some external data connections
           requiredConnections: 0,
           connectionTypes: ['object', 'string']
-        }
-      },
-      formFields: [
+        },
+        formFields: [
         { name: 'username', type: FORM_FIELD_TYPES.TEXT, label: 'Username', required: true, validation: { minLength: 3 } },
         { name: 'email', type: FORM_FIELD_TYPES.EMAIL, label: 'Email Address', required: true },
         { name: 'website', type: FORM_FIELD_TYPES.URL, label: 'Website URL' },
@@ -79,6 +78,8 @@ export const createEnhancedFormNode = () => ({
         { name: 'role', type: FORM_FIELD_TYPES.SELECT, label: 'Role', options: ROLE_OPTIONS, required: true },
         { name: 'user_id', type: FORM_FIELD_TYPES.HIDDEN, label: 'User ID' }
       ],
+      },
+      
       validation: {
         mode: 'real-time',
         rules: ['required-fields', 'format-validation', 'custom-rules'],
@@ -266,9 +267,8 @@ export const createEnhancedAdvancedFormNode = () => ({
           validation: true,
           preview: true,
           compression: true
-        }
-      },
-      formFields: [
+        },
+        formFields: [
         {
           name: 'project_name',
           type: FORM_FIELD_TYPES.TEXT,
@@ -314,6 +314,8 @@ export const createEnhancedAdvancedFormNode = () => ({
           validation: { minLength: 10, maxLength: 1000 }
         }
       ],
+      },
+      
       validation: {
         mode: 'real-time',
         rules: ['required-fields', 'file-validation', 'compliance-check'],
@@ -453,17 +455,18 @@ export const createEnhancedPromptInputNode = () => ({
       }),
       config: {
         allowExternalData: true,
-        contextInjection: { enabled: true, maxContextLength: 4000, injectionPoint: 'before-prompt' }
-      },
-      formFields: [
+        contextInjection: { enabled: true, maxContextLength: 4000, injectionPoint: 'before-prompt' },
+        formFields: [
         { name: 'prompt_template', type: FORM_FIELD_TYPES.TEXTAREA, label: 'Prompt Template', required: true },
         { name: 'model', type: FORM_FIELD_TYPES.SELECT, label: 'Model', options: LLM_MODEL_OPTIONS, required: true },
         { name: 'max_tokens', type: FORM_FIELD_TYPES.NUMBER, label: 'Max Tokens', min: 10, max: 8192, value: DEFAULT_LLM_CONFIG.maxTokens },
         { name: 'temperature', type: FORM_FIELD_TYPES.RANGE, label: 'Temperature', min: 0, max: 2, step: 0.1, value: DEFAULT_LLM_CONFIG.temperature }
       ]
+      },
+      
     },
-    output: {
-      data: { processedPrompt: "", model: DEFAULT_LLM_CONFIG.model, parameters: { max_tokens: DEFAULT_LLM_CONFIG.maxTokens, temperature: DEFAULT_LLM_CONFIG.temperature } }
+    output: { data:{}
+      //data: { processedPrompt: "", model: DEFAULT_LLM_CONFIG.model, parameters: { max_tokens: DEFAULT_LLM_CONFIG.maxTokens, temperature: DEFAULT_LLM_CONFIG.temperature } }
     },
     styling: {
       states: {
@@ -844,28 +847,16 @@ export const initialNodes = [
  * Default initial edges array for the ReactFlow canvas
  * Enhanced with connection metadata
  */
-export const initialEdges = [
+export const initialEdges = []
+/*[
   // Example multi-connection setup demonstrating Phase 8 capabilities
-  {
-    id: 'enhanced-form-to-llm',
-    source: 'enhanced-form-node',
-    target: 'enhanced-llm-processor',
-    sourceHandle: 'form-data-out',
-    targetHandle: 'primary-prompt',
-    type: 'smoothstep',
-    animated: true,
-    data: {
-      connectionType: 'data-flow',
-      priority: 10,
-      validation: ['form-to-llm-compatible']
-    }
-  },
+ 
   {
     id: 'prompt-to-llm-context',
     source: 'enhanced-prompt-input',
     target: 'enhanced-llm-processor',
-    sourceHandle: 'processed-prompt-out',
-    targetHandle: 'context-data',
+    sourceHandle: 'default',
+    targetHandle: 'default',
     type: 'smoothstep',
     data: {
       connectionType: 'context-injection',
@@ -877,8 +868,8 @@ export const initialEdges = [
     id: 'llm-to-markdown',
     source: 'enhanced-llm-processor',
     target: 'enhanced-markdown-display',
-    sourceHandle: 'response-output',
-    targetHandle: 'primary-content',
+    sourceHandle: 'default',
+    targetHandle: 'default',
     type: 'smoothstep',
     animated: true,
     data: {
@@ -888,6 +879,7 @@ export const initialEdges = [
     }
   }
 ];
+*/
 
 /**
  * Enhanced Node Factory Functions - Phase 8 Implementation

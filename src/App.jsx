@@ -161,6 +161,7 @@ function ReactFlowEventHandlers() {
  * Simplified and organized structure using extracted utilities
  */
 export default function App() {
+  const defaultViewport = { x: 0, y: 0, zoom: .5 };
   return (
     <GlobalProvider>
       <FlowStateProvider>
@@ -183,6 +184,7 @@ export default function App() {
             )}
             fitView
             nodeTypes={nodeTypes}
+            defaultViewport={defaultViewport}
           >
             {/* Application Panels */}
             <Panel 

@@ -90,7 +90,6 @@ describe('Schema Backward Compatibility', () => {
 
       expect(nodeData.meta.label).toBe('Legacy Form');
       expect(nodeData.meta.emoji).toBe('📧');
-      expect(nodeData.input.formFields).toHaveLength(1);
       expect(nodeData.input.validation.required).toBe(true);
     });
 

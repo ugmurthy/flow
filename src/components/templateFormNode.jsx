@@ -197,7 +197,7 @@ function TemplateFormNode({ data }) {
     }
 
     const initializeNode = async () => {
-      console.log(`[DEBUG][${nodeId}] Starting node initialization`);
+      console.log(`[DEBUG][${nodeId}] Starting node initialization: ${JSON.stringify(nodeData)}`);
       const measurement = performanceMonitor.startMeasurement('nodeInitialization');
       
       try {
@@ -216,14 +216,20 @@ function TemplateFormNode({ data }) {
             // Ensure formFields are preserved in the correct location
             input: {
               ...data.input,
-              formFields: data.input?.formFields || data.formFields || [],
+              // 25AUG25
+              //formFields: data.input?.formFields || data.formFields || [],
               config: {
                 ...data.input?.config,
-                formFields: data.input?.config?.formFields || data.input?.formFields || data.formFields || []
+                formFields: data.input?.config?.formFields || 
+                            // 25AUG25
+                            // data.input?.formFields || 
+                            // data.formFields || 
+                            []
               }
             },
             // Also keep formFields at root level for backward compatibility
-            formFields: data.input?.formFields || data.formFields || [],
+            // 25AUG25
+            // formFields: data.input?.formFields || data.formFields || [],
             styling: data.styling || {
               states: {
                 default: NodeVisualState.create(),
@@ -269,12 +275,13 @@ function TemplateFormNode({ data }) {
               tags: ['user-input', 'forms', 'enhanced'],
               version: '2.0.0'
             },
-            formFields: data.formFields || [],
+            // 25AUG25
+            //formFields: data.formFields || [],
             input: {
               config: {
                 validation: {},
                 allowExternalData: true,
-                formFields: data.formFields || []
+                formFields: data.input?.config?.formFields || []
               },
               processed: {
                 aggregated: {},
@@ -570,17 +577,9 @@ function TemplateFormNode({ data }) {
     if (!nodeData) return;
 
     // Try multiple possible locations for formFields to ensure compatibility
-    const formFields = nodeData.input?.formFields ||
-                      nodeData.input?.config?.formFields ||
-                      nodeData.formFields ||
-                      [];
-
+    const formFields =nodeData.input?.config?.formFields || [];
     console.log(`[Form Node][${nodeId}] Opening modal with formFields:`, formFields);
-    console.log(`[Form Node][${nodeId}] NodeData structure:`, {
-      hasInputFormFields: !!nodeData.input?.formFields,
-      hasInputConfigFormFields: !!nodeData.input?.config?.formFields,
-      hasRootFormFields: !!nodeData.formFields
-    });
+    
 
     openModal(MODAL_TYPES.FORM_EDIT, {
       formFields,
@@ -707,10 +706,7 @@ function TemplateFormNode({ data }) {
             className="hover:bg-purple-50 text-purple-700"
           />
         )}
-        <DeleteButton
-          className="hover:bg-red-50"
-          title="Delete Node"
-        />
+        
         <ResetButton onReset={resetFormData}/>
         <EditButton onEdit={handleOpenModal}/>
       </ButtonPanel>

@@ -30,7 +30,7 @@ export const ProcessingInput = {
     meta: {
       timestamp: new Date().toISOString(),
       dataType: typeof data,
-      dataSize: JSON.stringify(data).length,
+      dataSize: data ? JSON.stringify(data).length: 0 ,
       ...meta
     }
   })

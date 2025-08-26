@@ -316,7 +316,7 @@ describe('Enhanced Schema Architecture', () => {
       expect(updated.meta.description).toBe('Updated description');
       expect(updated.meta.updatedAt).toBeTruthy();
       expect(updated.input.processed.aggregated.new).toBe('data');
-      expect(updated.input.formFields).toHaveLength(1);
+
       expect(updated.output.directives['target-node']).toHaveLength(1);
       expect(updated.output.cache.enabled).toBe(true);
       expect(updated.error.warnings).toHaveLength(1);

@@ -513,7 +513,8 @@ export const NodeData = {
       })(),
 
       // Form Fields (Input Nodes Only)
-      formFields: formFields || input.formFields || [],
+      //25AUG25
+      //formFields: formFields || input.formFields || [],
 
       // Validation Rules
       validation: validation || input.validation || {},
@@ -646,9 +647,10 @@ export const NodeData = {
         );
       }
       
-      if (updates.input.formFields) {
-        newData.input.formFields = [...updates.input.formFields];
-      }
+      // 25AUG25
+      //if (updates.input.formFields) {
+      //  newData.input.formFields = [...updates.input.formFields];
+      //}
       
       if (updates.input.validation) {
         newData.input.validation = { ...newData.input.validation, ...updates.input.validation };
