@@ -178,13 +178,27 @@ export function createWorkflowMetadata(nodes, edges) {
  * @param {Array} params.edges - Workflow edges
  * @param {Object} [params.viewport] - Current viewport state
  * @param {string} [params.id] - Existing workflow ID (for updates)
+ * @param {Map|Object} [params.connectionMap] - Connection metadata for enhanced format
+ * @param {Object} [params.enhancedMetadata] - Enhanced format metadata
  * @returns {Object} - Complete workflow object
  */
-export function createWorkflowObject({ name, description = '', nodes, edges, viewport = null, id = null }) {
+export function createWorkflowObject({
+  name,
+  description = '',
+  nodes,
+  edges,
+  viewport = null,
+  id = null,
+  connectionMap = null,      // 🔥 NEW: Connection metadata
+  enhancedMetadata = null    // 🔥 NEW: Enhanced format metadata
+}) {
   const now = new Date().toISOString();
   const workflowId = id || generateWorkflowId();
   
   const metadata = createWorkflowMetadata(nodes, edges);
+  
+  // Determine if this is enhanced format
+  const isEnhancedFormat = enhancedMetadata?.version === '2.0.0';
   
   const workflow = {
     id: workflowId,
@@ -192,26 +206,55 @@ export function createWorkflowObject({ name, description = '', nodes, edges, vie
     description: description.trim(),
     createdAt: id ? undefined : now, // Don't update createdAt for existing workflows
     updatedAt: now,
-    version: '1.0.0',
-    metadata,
+    version: enhancedMetadata?.version || '1.0.0', // 🔥 Support enhanced version
+    metadata: {
+      ...metadata,
+      // Add enhanced metadata markers
+      ...(isEnhancedFormat && {
+        dataFidelity: enhancedMetadata.dataFidelity,
+        enhancedStats: enhancedMetadata.stats
+      })
+    },
     workflow: {
       nodes: nodes.map(node => ({
         ...node,
-        // Ensure consistent data structure
+        // 🔥 CRITICAL FIX: Preserve complete NodeData structure
         data: {
-          ...node.data
-        }
+          ...node.data // Now preserves full NodeData with connections!
+        },
+        // Preserve enhanced metadata if present
+        ...(node.enhancedMetadata && { enhancedMetadata: node.enhancedMetadata })
       })),
       edges: edges.map(edge => ({
         ...edge
       })),
-      ...(viewport && { viewport })
+      ...(viewport && { viewport }),
+      // 🔥 NEW: Store connection metadata for enhanced format
+      ...(connectionMap && {
+        connectionMap: connectionMap instanceof Map
+          ? Object.fromEntries(connectionMap)
+          : connectionMap
+      }),
+      // 🔥 NEW: Store enhanced metadata
+      ...(enhancedMetadata && { enhancedMetadata })
     }
   };
 
   // Remove undefined createdAt for updates
   if (workflow.createdAt === undefined) {
     delete workflow.createdAt;
+  }
+
+  // Log enhanced workflow creation
+  if (isEnhancedFormat) {
+    console.log('<core> workflowUtils: Created enhanced workflow object:', {
+      id: workflow.id,
+      version: workflow.version,
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      connectionMapSize: connectionMap ? (connectionMap instanceof Map ? connectionMap.size : Object.keys(connectionMap).length) : 0,
+      dataFidelity: enhancedMetadata?.dataFidelity
+    });
   }
 
   return workflow;
@@ -271,9 +314,12 @@ export function checkWorkflowValidity(nodes, edges) {
  * @param {Array} params.edges - All edges from canvas
  * @param {Object} [params.viewport] - Current viewport
  * @param {string} [params.id] - Existing workflow ID for updates
+ * @param {Object} [params.connectionMap] - connection meta data
+ * @param {Object} [params.enhancedMetadata] - workflow meta data
+ * 
  * @returns {Object} - { success: boolean, workflow?: Object, error?: string }
  */
-export function prepareWorkflowForSaving({ name, description, nodes, edges, viewport, id }) {
+export function prepareWorkflowForSaving({ name, description, nodes, edges, viewport, id,connectionMap,enhancedMetadata }) {
   try {
     // Validate inputs
     if (!name || name.trim().length === 0) {
@@ -286,7 +332,7 @@ export function prepareWorkflowForSaving({ name, description, nodes, edges, view
       return { success: false, error: validity.reason };
     }
 
-    // Extract connected workflow
+    // Extract connected workflow - nodes not connected are ignored.
     const { nodes: workflowNodes, edges: workflowEdges } = extractConnectedWorkflow(nodes, edges);
 
     // Create workflow object
@@ -296,7 +342,9 @@ export function prepareWorkflowForSaving({ name, description, nodes, edges, view
       nodes: workflowNodes,
       edges: workflowEdges,
       viewport,
-      id
+      id,
+      connectionMap,
+      enhancedMetadata
     });
 
     // Validate the created workflow

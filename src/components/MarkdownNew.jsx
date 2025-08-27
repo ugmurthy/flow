@@ -15,7 +15,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 import ViewButton from '../components/ViewButton';
 import DownloadFile from './DownloadFile';
 import ButtonPanel from './ButtonPanel';
-
+import ConnectionBadge from './ConnectionBadge';
 /**
  * Enhanced Error Boundary for MarkdownNew Node
  * Provides comprehensive error handling with recovery mechanisms
@@ -609,7 +609,8 @@ function MarkdownNew({ data, selected }) {
           className="p-1 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-gray-100"
         />
       </ButtonPanel>
-
+      {/* Connection Badge */}
+      <ConnectionBadge />
       {/* Main Node Container */}
       <div 
         className={`shadow-md rounded-lg border-2 min-w-[300px] max-w-[600px] relative transition-all duration-200 ${getStatusColor()}`}

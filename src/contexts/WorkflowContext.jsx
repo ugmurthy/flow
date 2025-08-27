@@ -1,11 +1,13 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import workflowDB from '../services/workflowDB';
-import { 
-  prepareWorkflowForSaving, 
+import {
+  prepareWorkflowForSaving,
   checkWorkflowValidity,
-  calculateWorkflowStats 
+  calculateWorkflowStats
 } from '../utils/workflowUtils';
 import { useReactFlow } from '@xyflow/react';
+import { createWorkflowDataManager } from '../services/workflowDataManager';
+import nodeDataManager from '../services/nodeDataManager';
 
 const WorkflowContext = createContext();
 
@@ -33,6 +35,10 @@ export const WorkflowProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [currentWorkflowId, setCurrentWorkflowId] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Create WorkflowDataManager instance
+  const workflowDataManager = useMemo(() =>
+    createWorkflowDataManager(nodeDataManager), []);
 
   // Track changes to nodes and edges
   React.useEffect(() => {
@@ -85,31 +91,66 @@ export const WorkflowProvider = ({ children }) => {
     return validity;
   }, [getNodes, getEdges]);
 
-  // Save workflow
+  // Enhanced save workflow with NodeDataManager data fidelity
   const saveWorkflow = useCallback(async ({ name, description, id = null }) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const nodes = getNodes();
-      const edges = getEdges();
+      console.log('<core> WorkflowContext: Starting enhanced save operation');
+      
+      // Get basic React Flow data
+      const reactFlowNodes = getNodes();
+      const reactFlowEdges = getEdges();
       const viewport = getViewport();
 
-      // Prepare workflow for saving
+      console.log(`<core> WorkflowContext: Retrieved ${reactFlowNodes.length} nodes, ${reactFlowEdges.length} edges from React Flow`);
+
+      // 🔥 ENHANCED: Merge with NodeDataManager rich data
+      const enhancedWorkflowData = await workflowDataManager.mergeReactFlowWithNodeData(
+        reactFlowNodes,
+        reactFlowEdges
+      );
+      console.log(`<core> WorkflowContext: enhancedWorkFlowData.nodes`,enhancedWorkflowData.nodes);
+
+      // Validate data integrity
+      const validation = workflowDataManager.validateDataIntegrity(enhancedWorkflowData);
+      if (!validation.isValid) {
+        console.error('<core> WorkflowContext: Data integrity validation failed:', validation.errors);
+        throw new Error(`Data integrity validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      if (validation.warnings.length > 0) {
+        console.warn('<core> WorkflowContext: Data integrity warnings:', validation.warnings);
+      }
+
+      // Prepare enhanced workflow for saving
       const result = prepareWorkflowForSaving({
         name,
         description,
-        nodes,
-        edges,
+        nodes: enhancedWorkflowData.nodes,     // 🔥 Now contains full NodeData
+        edges: enhancedWorkflowData.edges,
         viewport,
-        id
+        id,
+        // 🔥 NEW: Include connection metadata for enhanced format
+        connectionMap: enhancedWorkflowData.connectionMap,
+        enhancedMetadata: {
+          version: '2.0.0', // Enhanced format version
+          savedAt: new Date().toISOString(),
+          dataFidelity: 'complete',
+          stats: enhancedWorkflowData.stats,
+          validation: validation.stats
+        }
       });
 
       if (!result.success) {
         throw new Error(result.error);
       }
 
-      // Save to IndexedDB
+      console.log('<core> WorkflowContext: Enhanced workflow prepared successfully');
+
+      // Save enhanced workflow to IndexedDB
+      console.log('<core> WorkflowContext: Enhanced workflow saving..',result.workflow)
       const savedId = await workflowDB.saveWorkflow(result.workflow);
       
       // Update local state
@@ -117,38 +158,109 @@ export const WorkflowProvider = ({ children }) => {
       setCurrentWorkflowId(savedId);
       setHasUnsavedChanges(false);
 
-      return { success: true, workflowId: savedId };
+      console.log(`<core> WorkflowContext: Enhanced workflow saved successfully with ID: ${savedId}`);
+
+      return {
+        success: true,
+        workflowId: savedId,
+        enhancedStats: enhancedWorkflowData.stats,
+        validation: validation.stats
+      };
     } catch (err) {
+      console.error('<core> WorkflowContext: Enhanced save failed:', err);
       setError(err.message);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [getNodes, getEdges, getViewport, loadWorkflows]);
+  }, [getNodes, getEdges, getViewport, loadWorkflows, workflowDataManager]);
 
-  // Load workflow
+  // Enhanced load workflow with NodeDataManager state restoration
   const loadWorkflow = useCallback(async (workflow, mode = 'replace') => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const { nodes: workflowNodes, edges: workflowEdges, viewport } = workflow.workflow;
+      console.log(`<core> WorkflowContext: Starting enhanced load operation for ${workflow.name}`);
+      console.log(`<core> WorkflowContext: workflow `,workflow);
+      
+      const {
+        nodes: workflowNodes,
+        edges: workflowEdges,
+        viewport,
+        connectionMap,
+        enhancedMetadata
+      } = workflow.workflow;
+
+      // Check if this is an enhanced workflow with full data
+      const isEnhancedFormat = enhancedMetadata?.version === '2.0.0';
+      console.log(`<core> WorkflowContext: Loading ${isEnhancedFormat ? 'enhanced' : 'legacy'} format workflow`);
 
       if (mode === 'replace') {
-        // Replace current workflow
-        setNodes(workflowNodes);
-        setEdges(workflowEdges);
+        if (isEnhancedFormat) {
+          // 🔥 ENHANCED: Restore workflow with full NodeDataManager state
+          
+          // 1. Split the enhanced workflow data
+          const splitData = workflowDataManager.splitWorkflowData({
+            nodes: workflowNodes,
+            edges: workflowEdges,
+            connectionMap,
+            stats: enhancedMetadata.stats
+          });
+          
+          console.log('<core> WorkflowContext: Split enhanced data for restoration');
+
+          // 2. First, restore React Flow nodes and edges (for positioning/type)
+          setNodes(splitData.reactFlowNodes);
+          setEdges(splitData.reactFlowEdges);
+          
+          // 3. Restore NodeDataManager state
+          const restorationResult = await workflowDataManager.restoreNodeDataManagerState(
+            workflowNodes,
+            connectionMap
+          );
+          
+          if (!restorationResult.success) {
+            throw new Error('Failed to restore NodeDataManager state');
+          }
+          
+          console.log('<core> WorkflowContext: NodeDataManager state restored:', restorationResult.stats);
+          
+          // 4. Re-register all nodes with NodeDataManager for live updates
+          for (const node of workflowNodes) {
+            if (node.data && node.enhancedMetadata?.source === 'nodeDataManager') {
+              // Create update callback for React Flow sync
+              const updateCallback = (nodeId, updatedData) => {
+                console.log(`<core> WorkflowContext: Syncing node ${nodeId} data to React Flow`);
+                setNodes(nodes => nodes.map(n =>
+                  n.id === nodeId ? { ...n, data: updatedData } : n
+                ));
+              };
+
+              // Register with NodeDataManager
+              nodeDataManager.registerNode(node.id, node.data, updateCallback);
+              console.log(`<core> WorkflowContext: Re-registered node ${node.id} with NodeDataManager`);
+            }
+          }
+          
+        } else {
+          // Legacy format - use existing logic
+          console.log('<core> WorkflowContext: Loading legacy format workflow');
+          setNodes(workflowNodes);
+          setEdges(workflowEdges);
+        }
         
         if (viewport) {
           setViewport(viewport);
         }
+
       } else if (mode === 'merge') {
-        // Merge with current workflow
+        // Enhanced merge logic (works for both formats)
         const currentNodes = getNodes();
         const currentEdges = getEdges();
 
         // Calculate offset to avoid overlapping
-        const maxX = currentNodes.reduce((max, node) => 
+        const maxX = currentNodes.reduce((max, node) =>
           Math.max(max, node.position.x + 200), 0
         );
 
@@ -178,19 +290,40 @@ export const WorkflowProvider = ({ children }) => {
         // Merge with current
         setNodes([...currentNodes, ...offsetNodes]);
         setEdges([...currentEdges, ...offsetEdges]);
+
+        // If enhanced format, also register merged nodes with NodeDataManager
+        if (isEnhancedFormat) {
+          for (const node of offsetNodes) {
+            if (node.data && node.enhancedMetadata?.source === 'nodeDataManager') {
+              const updateCallback = (nodeId, updatedData) => {
+                setNodes(nodes => nodes.map(n =>
+                  n.id === nodeId ? { ...n, data: updatedData } : n
+                ));
+              };
+              nodeDataManager.registerNode(node.id, node.data, updateCallback);
+            }
+          }
+        }
       }
 
       setCurrentWorkflowId(workflow.id);
       setHasUnsavedChanges(false);
 
-      return { success: true };
+      console.log(`<core> WorkflowContext: Enhanced load completed for workflow ${workflow.name}`);
+
+      return {
+        success: true,
+        format: isEnhancedFormat ? 'enhanced' : 'legacy',
+        restorationStats: isEnhancedFormat ? enhancedMetadata.stats : null
+      };
     } catch (err) {
+      console.error('<core> WorkflowContext: Enhanced load failed:', err);
       setError(err.message);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [getNodes, getEdges, setNodes, setEdges, setViewport]);
+  }, [getNodes, getEdges, setNodes, setEdges, setViewport, workflowDataManager]);
 
   // Delete workflow
   const deleteWorkflow = useCallback(async (workflowId) => {

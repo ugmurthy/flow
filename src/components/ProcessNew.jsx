@@ -47,11 +47,12 @@ class ProcessNewErrorBoundary extends Component {
 
     // Report to performance monitor
     if (this.props.nodeId) {
-      performanceMonitor.recordError(`processNew-${this.props.nodeId}`, error.message, {
-        componentStack: errorInfo.componentStack,
-        retryCount: this.state.retryCount,
-        pluginName: this.props.pluginName || 'unknown'
-      });
+      console.log(`processNew-${this.props.nodeId}`, error.message)
+      // performanceMonitor.recordError(`processNew-${this.props.nodeId}`, error.message, {
+      //   componentStack: errorInfo.componentStack,
+      //   retryCount: this.state.retryCount,
+      //   pluginName: this.props.pluginName || 'unknown'
+      // });
     }
   }
 
@@ -147,11 +148,13 @@ function ProcessNew({ data, selected }) {
   const pluginExecutionStartTime = useRef(null);
 
   // Derived state combining FlowState + local state
-  const isProcessing = processingNodes.has(currentNodeId);
-  const processingStatus = isProcessing ? 'processing' :
-    (nodeData?.output?.meta?.status || 'idle');
+  // const isProcessing = processingNodes.has(currentNodeId);
+  // const processingStatus = isProcessing ? 'processing' :
+  //   (nodeData?.output?.meta?.status || 'idle');
+  const processingStatus = nodeData?.output?.meta?.status || 'idle'
   const errorState = nodeData?.error?.hasError ? nodeData.error : localErrorState;
 
+  console.log(`[ProcessNode]: processingStatus ${processingStatus} output.meta.status ${nodeData?.output?.meta?.status}`)
   // Get computed styles from NodeStyleManager
   const computedStyles = styleManagerRef.current.getNodeStyle(
     nodeData || {},
@@ -449,15 +452,18 @@ function ProcessNew({ data, selected }) {
         
         // Update visual state based on status
         let newVisualState = 'default';
-        if (newStatus === 'processing') {
-          newVisualState = 'processing';
-        } else if (newStatus === 'success') {
-          newVisualState = 'success';
-        } else if (newStatus === 'error') {
-          newVisualState = 'error';
-        } else if (newStatus === 'idle') {
-          newVisualState = 'idle';
+        if (["processing", "error", "idle", "success"].includes(newStatus)) {
+            newVisualState = newStatus;
         }
+        // if (newStatus === 'processing') {
+        //   newVisualState = 'processing';
+        // } else if (newStatus === 'success') {
+        //   newVisualState = 'success';
+        // } else if (newStatus === 'error') {
+        //   newVisualState = 'error';
+        // } else if (newStatus === 'idle') {
+        //   newVisualState = 'idle';
+        // }
         
         setCurrentVisualState(newVisualState);
         
