@@ -434,7 +434,7 @@ function TemplateFormNode({ data }) {
           processDirectives(updatedNodeData.output.directives);
         }
         
-        console.log(`[DEBUG][${nodeId}] Local state updated - Status: ${newStatus}, Visual: ${newVisualState}`);
+        //console.log(`[DEBUG][${nodeId}] Local state updated - Status: ${newStatus}, Visual: ${newVisualState}`);
       }
     };
 

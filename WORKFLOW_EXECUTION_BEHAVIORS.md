@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains the execution behaviors in the jobrunner-flow system using a typical **FormNode → ProcessNode → OutputNode** workflow as an example.
+This document explains the execution behaviors in the jobrunner-flow system using a typical **FormNode → ProcessNode → OutputNode** workflow as an example. The system supports **four types of execution triggers**: three are currently implemented and one is proposed for enhanced workflow control.
 
 ## Current **Cascading Behavior** (✅ Already Implemented)
 
@@ -70,9 +70,9 @@ sequenceDiagram
 
 ---
 
-## Proposed **Connection-Triggered Execution** (🆕 New Feature)
+## **Connection-Triggered Execution** (✅ Already Implemented)
 
-### What this would add:
+### What this provides:
 
 When you **visually connect nodes** by dragging edges, the target node immediately executes if:
 
@@ -91,13 +91,9 @@ sequenceDiagram
     User->>NodeDataManager: Connection created via ReactFlow
     NodeDataManager->>NodeDataManager: addConnection(FormNode, ProcessNode)
     NodeDataManager->>ProcessNode: Update connection data
-    Note over NodeDataManager: 🔍 Check executeWorkflow flag
-    alt executeWorkflow = true
-        NodeDataManager->>ProcessNode: processNode(ProcessNode) [IMMEDIATE]
-        ProcessNode->>ProcessNode: Executes with FormNode data
-    else executeWorkflow = false
-        Note over ProcessNode: ⏸️ No immediate execution
-    end
+    Note over NodeDataManager: ✅ Connection added - immediate execution
+    NodeDataManager->>ProcessNode: processNode(ProcessNode) [IMMEDIATE]
+    ProcessNode->>ProcessNode: Executes with FormNode data
 ```
 
 **Example Scenarios:**
@@ -119,115 +115,448 @@ sequenceDiagram
 
 ---
 
-## **Key Differences Explained**
+## **Data.Output Update Triggered Execution** (✅ Already Implemented)
 
-| Aspect       | Current Cascading (✅)               | Connection-Triggered (🆕)                      |
-| ------------ | ------------------------------------ | ---------------------------------------------- |
-| **Trigger**  | Node finishes processing             | Visual connection made                         |
-| **Flow**     | FormNode → ProcessNode → OutputNode  | Immediate upon connection                      |
-| **Control**  | `executeWorkflow` controls cascading | `executeWorkflow` controls connection behavior |
-| **Timing**   | Sequential, after processing         | Immediate upon drag-and-drop                   |
-| **Use Case** | Automatic pipeline execution         | Interactive workflow building                  |
+### What this provides:
+
+When **any external system or manual update** modifies a node's [`output.data`](src/services/nodeDataManager.js:477-486), downstream nodes can be triggered to execute immediately.
+
+```mermaid
+sequenceDiagram
+    participant API/External
+    participant NodeDataManager
+    participant SourceNode
+    participant TargetNode
+    participant DownstreamNode
+
+    API/External->>NodeDataManager: updateNodeData(nodeId, {output: {data: newData}}, true)
+    NodeDataManager->>SourceNode: Update output.data
+    Note over NodeDataManager: 🔍 Check triggerProcessing flag
+    alt triggerProcessing = true
+        NodeDataManager->>SourceNode: processNode(SourceNode) [IMMEDIATE]
+        SourceNode->>SourceNode: Process with new data
+        NodeDataManager->>NodeDataManager: _triggerDownstreamProcessing(SourceNode)
+        Note over NodeDataManager: ✅ executeWorkflow check
+        NodeDataManager->>TargetNode: processNode(TargetNode)
+        NodeDataManager->>DownstreamNode: processNode(DownstreamNode)
+    else triggerProcessing = false
+        Note over TargetNode: ⏸️ No immediate execution
+    end
+```
+
+**Key Implementation Details:**
+
+- **Method**: [`nodeDataManager.updateNodeData(nodeId, updates, triggerProcessing)`](src/services/nodeDataManager.js:146)
+- **Trigger Parameter**: `triggerProcessing = true` enables immediate execution
+- **ExecuteWorkflow Respect**: Still honors the global `executeWorkflow` flag for downstream cascade
+- **Use Cases**: API updates, plugin results, external data injection, manual data manipulation
+
+**Example Scenarios:**
+
+### Scenario C: API Updates Node Output Data
+
+```javascript
+// External API or plugin updates a node's output
+await nodeDataManager.updateNodeData(
+  "data-source-node",
+  {
+    output: {
+      data: {
+        apiResult: fetchedData,
+        timestamp: new Date().toISOString(),
+      },
+    },
+  },
+  true
+); // triggerProcessing = true triggers immediate cascade
+```
+
+### Scenario D: Plugin Generates New Output Data
+
+```javascript
+// Plugin processing generates new data and triggers downstream
+await nodeDataManager.updateNodeData(
+  "processor-node",
+  {
+    output: {
+      data: processedResult,
+      meta: {
+        status: "success",
+        timestamp: new Date().toISOString(),
+      },
+    },
+  },
+  true
+); // Triggers downstream nodes to process with new data
+```
+
+### Scenario E: Manual Data Injection
+
+```javascript
+// Developer or debugging tool injects data
+await nodeDataManager.updateNodeData(
+  "input-node",
+  {
+    output: {
+      data: {
+        debugData: "test-value",
+        simulatedInput: true,
+      },
+    },
+  },
+  true
+); // Simulates user input and triggers workflow
+```
 
 ---
 
-## **Combined Behavior** (Recommended Implementation)
+## **Retroactive Cascade Triggered Execution** (🆕 Proposed Enhancement)
 
-With both features, your workflow would work like this:
+### What this provides:
+
+When `executeWorkflow` **transitions from `false` to `true`**, the system automatically detects nodes with existing output data that have stalled downstream processing, and triggers retroactive cascade execution to process the entire chain without manual intervention.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant FormNode
+    participant ProcessNode
+    participant OutputNode
+    participant GlobalContext
+    participant NodeDataManager
+
+    Note over GlobalContext: executeWorkflow = false
+    User->>FormNode: Submit form data
+    FormNode->>NodeDataManager: updateNodeData(formData, true)
+    NodeDataManager->>FormNode: Process form (store data)
+    NodeDataManager->>NodeDataManager: _triggerDownstreamProcessing()
+    Note over NodeDataManager: ⏸️ executeWorkflow = false - STOP cascade
+    Note over ProcessNode: Remains idle with stale data
+    Note over OutputNode: Remains idle with stale data
+
+    User->>GlobalContext: Toggle executeWorkflow to true
+    GlobalContext->>NodeDataManager: _handleExecuteWorkflowChange(true, false)
+    NodeDataManager->>NodeDataManager: _triggerRetroactiveCascade()
+    NodeDataManager->>NodeDataManager: _findStalledRootNodes()
+    Note over NodeDataManager: Finds FormNode has data, ProcessNode is stale
+
+    NodeDataManager->>FormNode: updateNodeData() with triggerProcessing=true
+    FormNode->>NodeDataManager: Process (re-trigger with data)
+    NodeDataManager->>NodeDataManager: _triggerDownstreamProcessing()
+    Note over NodeDataManager: ✅ executeWorkflow = true - CASCADE
+    NodeDataManager->>ProcessNode: processNode()
+    ProcessNode->>ProcessNode: Execute with FormNode data
+    NodeDataManager->>OutputNode: processNode()
+    OutputNode->>OutputNode: Render final output
+
+    NodeDataManager->>User: Emit RETROACTIVE_CASCADE_COMPLETED
+```
+
+**Key Implementation Details:**
+
+- **Trigger**: `executeWorkflow` state change from `false` → `true`
+- **Detection**: Automatically identifies stalled nodes with output data but unprocessed downstream connections
+- **Processing**: Re-triggers root nodes which cascade through the entire chain
+- **Events**: Emits `RETROACTIVE_CASCADE_STARTED`, `RETROACTIVE_CASCADE_COMPLETED`, and error events
+
+**Example Scenarios:**
+
+### Scenario F: Form Submitted While Workflow Paused
+
+```javascript
+// Setup: executeWorkflow = false initially
+globalContext.setExecuteWorkflow(false);
+
+// User submits form data - only FormNode processes
+await nodeDataManager.updateNodeData(
+  "form-node",
+  {
+    output: {
+      data: {
+        userName: "John Doe",
+        email: "john@example.com",
+        formData: {
+          /* form fields */
+        },
+      },
+    },
+  },
+  true
+); // FormNode processes, but downstream blocked
+
+// ProcessNode and OutputNode remain idle
+// Status: FormNode ✅ | ProcessNode ❌ | OutputNode ❌
+
+// Later: User enables workflow execution
+globalContext.setExecuteWorkflow(true);
+
+// 🚀 Retroactive cascade automatically triggers:
+// 1. Detects FormNode has data but ProcessNode is stale
+// 2. Re-triggers FormNode processing → cascades to ProcessNode → OutputNode
+// 3. All nodes process in sequence automatically
+// Final Status: FormNode ✅ | ProcessNode ✅ | OutputNode ✅
+```
+
+### Scenario G: Multiple Form Chains with Retroactive Trigger
+
+```javascript
+// Multiple forms submitted while executeWorkflow = false
+await nodeDataManager.updateNodeData(
+  "user-form",
+  {
+    output: { data: userData },
+  },
+  true
+);
+await nodeDataManager.updateNodeData(
+  "settings-form",
+  {
+    output: { data: settingsData },
+  },
+  true
+);
+await nodeDataManager.updateNodeData(
+  "config-form",
+  {
+    output: { data: configData },
+  },
+  true
+);
+
+// All have separate processing chains that are stalled:
+// user-form → user-processor → user-display (all stalled)
+// settings-form → settings-processor → settings-display (all stalled)
+// config-form → config-processor → config-display (all stalled)
+
+// Enable workflow execution
+globalContext.setExecuteWorkflow(true);
+
+// 🚀 Retroactive cascade processes all chains in parallel:
+// - Detects 3 stalled root nodes
+// - Triggers all 3 chains simultaneously
+// - Each chain processes in sequence while chains run in parallel
+```
+
+**Implementation Requirements:**
+
+This feature requires enhancements to:
+
+1. **GlobalContext**: Add state change callback registration ([see implementation](RETROACTIVE_CASCADE_IMPLEMENTATION.md#step-1-enhanced-globalcontext-with-state-change-callbacks))
+2. **NodeDataManager**: Add retroactive cascade methods ([see implementation](RETROACTIVE_CASCADE_IMPLEMENTATION.md#step-2-enhanced-nodedatamanager-with-retroactive-cascade))
+3. **Integration**: Connect components for automatic triggering ([see implementation](RETROACTIVE_CASCADE_IMPLEMENTATION.md#integration-points))
+
+---
+
+## **Key Differences Explained**
+
+| Aspect       | Cascading (✅)                                                          | Connection-Triggered (✅)                                     | Data.Output Update (✅)                                   | Retroactive Cascade (🆕)                        |
+| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| **Trigger**  | Node finishes processing                                                | Visual connection made                                        | Direct data.output update                                 | executeWorkflow state change false→true         |
+| **Method**   | [`_triggerDownstreamProcessing()`](src/services/nodeDataManager.js:820) | [`addConnection()`](src/services/nodeDataManager.js:314)      | [`updateNodeData()`](src/services/nodeDataManager.js:208) | `_triggerRetroactiveCascade()` (proposed)       |
+| **Flow**     | Sequential after completion                                             | Immediate upon connection                                     | Immediate if triggerProcessing=true                       | Detects stalled nodes, triggers cascade         |
+| **Control**  | `executeWorkflow` controls cascading                                    | `executeWorkflow` honors (but always tries to execute target) | `executeWorkflow` + `triggerProcessing` flags             | Triggered by `executeWorkflow` state transition |
+| **Timing**   | After node processing completes                                         | Immediate upon drag-and-drop                                  | Immediate upon data update                                | Immediate upon workflow resume                  |
+| **Use Case** | Automatic pipeline execution                                            | Interactive workflow building                                 | External data injection, API updates                      | Workflow pause/resume with data preservation    |
+
+---
+
+## **Combined Behavior** (Current + Proposed Implementation)
+
+With all four execution triggers, your workflow works like this:
 
 ### Complete Flow Example:
 
 ```mermaid
 graph TD
-    A[User creates FormNode] --> B[User fills form]
-    B --> C[User drags FormNode → ProcessNode]
-    C --> D{executeWorkflow?}
-    D -->|true| E[ProcessNode executes IMMEDIATELY]
-    D -->|false| F[ProcessNode stays idle]
-    E --> G[User drags ProcessNode → OutputNode]
-    G --> H[OutputNode executes IMMEDIATELY]
+    A[External API updates data.output] --> B[updateNodeData triggerProcessing=true]
+    B --> C{executeWorkflow?}
+    C -->|true| D[Source node executes IMMEDIATELY]
+    C -->|false| E[Source node stays idle]
+    D --> F[User drags connection to ProcessNode]
+    F --> G[ProcessNode executes IMMEDIATELY via connection trigger]
+    G --> H[ProcessNode completes processing]
+    H --> I[Cascading: OutputNode executes AUTOMATICALLY]
 
-    I[Later: User submits NEW form data] --> J[FormNode processes]
-    J --> K[ProcessNode executes CASCADING]
-    K --> L[OutputNode executes CASCADING]
+    J[Later: User submits NEW form data] --> K[FormNode processes]
+    K --> L[Cascading: ProcessNode executes]
+    L --> M[Cascading: OutputNode executes]
 
-    style E fill:#90EE90
-    style H fill:#90EE90
-    style K fill:#FFE4B5
+    style D fill:#90EE90
+    style G fill:#90EE90
+    style I fill:#90EE90
     style L fill:#FFE4B5
+    style M fill:#FFE4B5
 ```
 
 ### Benefits:
 
-1. **Immediate Feedback**: See results as soon as you connect nodes
-2. **Interactive Building**: Build workflows with live preview
-3. **Automatic Updates**: Changes propagate through the entire chain
-4. **Global Control**: Single executeWorkflow flag controls everything
+1. **External Integration**: API/webhook updates can trigger workflows
+2. **Immediate Feedback**: See results as soon as you connect nodes or update data
+3. **Interactive Building**: Build workflows with live preview
+4. **Automatic Updates**: Changes propagate through the entire chain
+5. **Global Control**: Single executeWorkflow flag controls everything
+6. **Flexible Triggering**: Multiple ways to initiate workflow execution
+7. **Data Preservation**: No data loss when pausing/resuming workflows
+8. **Intelligent Recovery**: Automatic cascade when re-enabling workflow execution
 
 ---
 
 ## **Current Implementation Status**
 
-### ✅ Already Implemented:
+### ✅ Fully Implemented:
 
 - **Global executeWorkflow flag** in [`GlobalContext.jsx`](src/contexts/GlobalContext.jsx:17)
 - **Play/Pause button** in WorkflowFAB component
-- **Cascading execution** in [`NodeDataManager._triggerDownstreamProcessing()`](src/services/nodeDataManager.js:819-827)
+- **Cascading execution** in [`NodeDataManager._triggerDownstreamProcessing()`](src/services/nodeDataManager.js:820-846)
+- **Connection-triggered execution** in [`NodeDataManager.addConnection()`](src/services/nodeDataManager.js:314)
+- **Data.output update triggered execution** in [`NodeDataManager.updateNodeData()`](src/services/nodeDataManager.js:208-211)
 - **Manual Process button** in [`ProcessNew.jsx`](src/components/ProcessNew.jsx:718)
 
-### 🆕 Missing Implementation:
+### 🔧 Implementation Details:
 
-- **Connection-triggered execution** - When nodes are connected, target doesn't auto-execute
-- Currently: [`NodeDataManager.addConnection()`](src/services/nodeDataManager.js:223) only updates connection data
-- Needed: Check executeWorkflow flag and trigger target node processing
-
----
-
-## **Implementation Plan**
-
-### Minimal Change Required:
-
-Add executeWorkflow check to [`NodeDataManager.addConnection()`](src/services/nodeDataManager.js:223) method:
+#### Cascading Execution Control:
 
 ```javascript
-// After updating connection data (line ~310)
-// Check if we should trigger immediate execution
+// Located in _triggerDownstreamProcessing()
 const executeWorkflow = this.globalContext?.executeWorkflow ?? true;
-if (executeWorkflow) {
-  const sourceData = this.nodes.get(sourceNodeId);
-  if (
-    sourceData &&
-    sourceData.output.data &&
-    Object.keys(sourceData.output.data).length > 0
-  ) {
-    // Source has data - trigger target processing
-    await this.processNode(targetNodeId);
+if (!executeWorkflow) {
+  console.log(`⏸️ Workflow execution paused - skipping downstream processing`);
+  return; // Stops cascade
+}
+```
+
+#### Connection-Triggered Execution:
+
+```javascript
+// Located in addConnection() - line 314
+// After updating connection data
+await this.processNode(targetNodeId); // Always attempts to process target
+```
+
+#### Data.Output Update Triggered Execution:
+
+```javascript
+// Located in updateNodeData() - lines 208-211
+if (triggerProcessing) {
+  console.log(`Node ${nodeId} triggering processNode`);
+  await this.processNode(nodeId); // Triggers immediate processing
+}
+```
+
+#### Retroactive Cascade Triggered Execution (Proposed):
+
+```javascript
+// Enhanced GlobalContext with state change detection
+const setExecuteWorkflowEnhanced = useCallback((newValue) => {
+  const prevValue = executeWorkflow;
+  setExecuteWorkflow(newValue);
+
+  // Notify registered callbacks of state change
+  if (prevValue !== newValue) {
+    callbacksRef.current.forEach(callback => {
+      callback(newValue, prevValue);
+    });
+  }
+}, [executeWorkflow]);
+
+// NodeDataManager retroactive cascade trigger
+async _handleExecuteWorkflowChange(newValue, prevValue) {
+  // Trigger retroactive cascade when going from false to true
+  if (prevValue === false && newValue === true) {
+    await this._triggerRetroactiveCascade();
   }
 }
 ```
 
-This single addition will provide connection-triggered execution while maintaining all existing behavior!
+### 🆕 Proposed Enhancement:
+
+- **Retroactive cascade triggered execution** - When executeWorkflow changes from false→true
+- **Implementation**: Enhanced GlobalContext with state change callbacks ([see details](RETROACTIVE_CASCADE_IMPLEMENTATION.md))
+- **Capability**: NodeDataManager methods to detect stalled nodes and trigger retroactive cascades
+- **Benefits**: Zero data loss, intelligent recovery, automatic workflow resumption
 
 ---
 
-## **Alternative Implementation Options**
+## **API Reference**
 
-### Option 1: Minimal Change (Recommended)
+### Core Methods:
 
-- Add executeWorkflow check to existing `addConnection()` method
-- **Pros**: Simple, maintains existing architecture
-- **Cons**: None identified
+#### [`updateNodeData(nodeId, updates, triggerProcessing)`](src/services/nodeDataManager.js:146)
 
-### Option 2: Separate Connection Handler
+- **Purpose**: Update any part of node data, optionally trigger processing
+- **triggerProcessing**: `boolean` - If `true`, immediately processes the node
+- **Respects**: Global `executeWorkflow` flag for downstream cascading
+- **Use**: External data updates, API integration, manual data injection
 
-- Create new `handleConnectionWithExecution()` method
-- **Pros**: More explicit, easier to test separately
-- **Cons**: Requires changes to ReactFlow integration
+#### [`addConnection(sourceNodeId, targetNodeId, sourceHandle, targetHandle, edgeId)`](src/services/nodeDataManager.js:224)
 
-### Option 3: Event-Driven Approach
+- **Purpose**: Create connection between nodes, immediately process target
+- **Behavior**: Always attempts to process target node regardless of executeWorkflow
+- **Use**: Interactive workflow building
 
-- Emit CONNECTION_ADDED event and handle execution separately
-- **Pros**: More decoupled, follows existing event pattern
-- **Cons**: More complex, might introduce timing issues
+#### [`processNode(nodeId)`](src/services/nodeDataManager.js:411)
 
-**Recommendation**: Go with **Option 1** for minimal impact and maximum compatibility.
+- **Purpose**: Process a single node, then trigger downstream processing
+- **Behavior**: Respects executeWorkflow flag for downstream cascade
+- **Use**: Manual node execution, triggered by other methods
+
+---
+
+## **Usage Patterns**
+
+### Pattern 1: External Data Integration
+
+```javascript
+// Webhook receives data and triggers workflow
+app.post("/webhook/data", async (req, res) => {
+  await nodeDataManager.updateNodeData(
+    "webhook-node",
+    {
+      output: { data: req.body },
+    },
+    true
+  ); // Triggers immediate processing
+});
+```
+
+### Pattern 2: Plugin-Generated Data
+
+```javascript
+// Plugin processes data and updates output
+const pluginResult = await processData(inputData);
+await nodeDataManager.updateNodeData(
+  nodeId,
+  {
+    output: {
+      data: pluginResult,
+      meta: { status: "success" },
+    },
+  },
+  true
+); // Triggers downstream processing
+```
+
+### Pattern 3: Interactive Workflow Building
+
+```javascript
+// User connects nodes in UI - target processes immediately
+// This happens automatically in React Flow integration
+// See: ReactFlowIntegration.handleConnect()
+```
+
+### Pattern 4: Debugging and Testing
+
+```javascript
+// Inject test data for debugging
+await nodeDataManager.updateNodeData(
+  "test-node",
+  {
+    output: { data: { test: "data" } },
+  },
+  true
+); // Simulates real data flow
+```
+
+---
+
+This comprehensive execution behavior ensures that workflows can be triggered from multiple sources: user interactions, external APIs, plugin processing, and manual data updates, all while respecting the global execution control settings.

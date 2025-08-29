@@ -128,7 +128,8 @@ function AppContent() {
  * Handles NodeDataManager and FlowState integration initialization
  */
 function ReactFlowEventHandlers() {
-  const { executeWorkflow } = useGlobal();
+  const globalContext = useGlobal();
+  const { executeWorkflow } = globalContext;
 
   // Initialize NodeDataManager and FlowState integration
   useEffect(() => {
@@ -147,11 +148,29 @@ function ReactFlowEventHandlers() {
     initializeIntegration();
   }, []);
 
-  // Wire up GlobalContext with NodeDataManager whenever executeWorkflow changes
+  // ✨ ENHANCED: Wire up complete GlobalContext (only once on mount)
   useEffect(() => {
-    nodeDataManager.setGlobalContext({ executeWorkflow });
-    console.log(`🔗 GlobalContext wired to NodeDataManager - ExecuteWorkflow: ${executeWorkflow}`);
-  }, [executeWorkflow]);
+    nodeDataManager.setGlobalContext(globalContext);
+    console.log(`🔗 Complete GlobalContext wired to NodeDataManager - ExecuteWorkflow: ${executeWorkflow}`);
+  }, [globalContext]); // Remove executeWorkflow dependency to prevent re-registration during cascade
+
+  // Optional: Listen for retroactive cascade events for UI feedback
+  useEffect(() => {
+    const handleRetroactiveCascade = (event) => {
+      console.log('🔄 Retroactive cascade event:', event.type, event.detail);
+      // Could update UI to show cascade progress
+    };
+
+    nodeDataManager.addEventListener('RETROACTIVE_CASCADE_STARTED', handleRetroactiveCascade);
+    nodeDataManager.addEventListener('RETROACTIVE_CASCADE_COMPLETED', handleRetroactiveCascade);
+    nodeDataManager.addEventListener('RETROACTIVE_CASCADE_ERROR', handleRetroactiveCascade);
+
+    return () => {
+      nodeDataManager.removeEventListener('RETROACTIVE_CASCADE_STARTED', handleRetroactiveCascade);
+      nodeDataManager.removeEventListener('RETROACTIVE_CASCADE_COMPLETED', handleRetroactiveCascade);
+      nodeDataManager.removeEventListener('RETROACTIVE_CASCADE_ERROR', handleRetroactiveCascade);
+    };
+  }, []);
 
   return null; // This component only handles side effects
 }

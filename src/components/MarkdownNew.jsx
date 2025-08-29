@@ -695,6 +695,11 @@ function MarkdownNew({ data, selected }) {
           position={Position.Left}
           className="!w-3 !h-3 !bg-gray-400 !rounded-full !border-2 !border-white"
         />
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!w-3 !h-3 !bg-blue-400 !rounded-full !border-2 !border-white"
+        />
       </div>
     </div>
   );

@@ -36,6 +36,7 @@ export class NodeDataManager extends EventTarget {
     this.flowStateContext = null; // FlowStateContext integration
     this.globalContext = null; // Global context for ExecuteWorkflow control
     this.directiveProcessor = null; // DirectiveProcessor instance
+    this.executeWorkflowUnsubscribe = null; // Subscription cleanup function
     this.initialized = false;
   }
 
@@ -60,12 +61,227 @@ export class NodeDataManager extends EventTarget {
   }
 
   /**
-   * Set Global Context for workflow execution control
+   * Set Global Context and register for executeWorkflow changes
    * @param {Object} globalContext - Global context containing executeWorkflow flag
    */
   setGlobalContext(globalContext) {
     this.globalContext = globalContext;
-    console.log('<core> nodeDataManager: ✅ Global context registered with NodeDataManager');
+    
+    // Clean up previous subscription
+    if (this.executeWorkflowUnsubscribe) {
+      this.executeWorkflowUnsubscribe();
+    }
+
+    // Register for executeWorkflow state changes
+    if (globalContext?.registerExecuteWorkflowCallback) {
+      console.log('<core> nodeDataManager: 🔔 Registering executeWorkflow callback...');
+      this.executeWorkflowUnsubscribe = globalContext.registerExecuteWorkflowCallback(
+        (newValue, prevValue) => this._handleExecuteWorkflowChange(newValue, prevValue)
+      );
+      console.log('<core> nodeDataManager: ✅ ExecuteWorkflow callback registered successfully');
+    } else {
+      console.warn('<core> nodeDataManager: ⚠️ GlobalContext does not have registerExecuteWorkflowCallback method');
+    }
+
+    console.log('<core> nodeDataManager: ✅ Global context registered with executeWorkflow monitoring');
+    console.log('<core> nodeDataManager: Current executeWorkflow value:', globalContext?.executeWorkflow);
+  }
+
+  /**
+   * Handle executeWorkflow state changes - RETROACTIVE CASCADE TRIGGER
+   * @private
+   */
+  async _handleExecuteWorkflowChange(newValue, prevValue) {
+    console.log(`<core> nodeDataManager: ExecuteWorkflow changed: ${prevValue} → ${newValue}`);
+    
+    // 🔍 DIAGNOSTIC: Check timing issue
+    console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC - newValue param: ${newValue}, globalContext.executeWorkflow: ${this.globalContext?.executeWorkflow}`);
+
+    // Only trigger retroactive cascade when going from false to true
+    if (prevValue === false && newValue === true) {
+      console.log('<core> nodeDataManager: 🚀 Triggering retroactive cascade processing...');
+      
+      // Debug: Check current state before cascade
+      const stats = this.getRetroactiveCascadeStats();
+      console.log('<core> nodeDataManager: Cascade stats before trigger:', stats);
+      console.log('<core> nodeDataManager: Total nodes:', this.nodes.size);
+      console.log('<core> nodeDataManager: Total connections:', this.connections.size);
+      
+      // List all nodes and their status
+      for (const [nodeId, nodeData] of this.nodes) {
+        console.log(`<core> nodeDataManager: Node ${nodeId} status: ${nodeData.output?.meta?.status}, hasData: ${!!(nodeData.output?.data && Object.keys(nodeData.output.data).length > 0)}`);
+      }
+      
+      await this._triggerRetroactiveCascade(newValue); // Pass newValue to cascade
+    }
+  }
+
+  /**
+   * Trigger retroactive cascade for stalled nodes
+   * @private
+   */
+  async _triggerRetroactiveCascade(executeWorkflowValue = null) {
+    try {
+      // Find all nodes with output data that could trigger downstream processing
+      const stalledRootNodes = this._findStalledRootNodes();
+
+      if (stalledRootNodes.length === 0) {
+        console.log('<core> nodeDataManager: No stalled nodes found for retroactive cascade');
+        return;
+      }
+
+      console.log(
+        `<core> nodeDataManager: Found ${stalledRootNodes.length} stalled root nodes:`,
+        stalledRootNodes.map((n) => n.nodeId)
+      );
+
+      // Emit retroactive cascade started event
+      this.dispatchEvent(new CustomEvent('RETROACTIVE_CASCADE_STARTED', {
+        detail: {
+          rootNodes: stalledRootNodes.map((n) => n.nodeId),
+          timestamp: new Date().toISOString(),
+        }
+      }));
+
+      // Process each stalled root node which will trigger downstream cascades
+      const processingPromises = stalledRootNodes.map(async (rootNode) => {
+        console.log(`<core> nodeDataManager: 🎯 Processing stalled root node: ${rootNode.nodeId}`);
+
+        // 🔍 DIAGNOSTIC: Log the executeWorkflow value being passed
+        console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC - executeWorkflowValue passed to cascade: ${executeWorkflowValue}`);
+
+        // Trigger processing with retroactive source and override executeWorkflow
+        const result = await this.processNode(rootNode.nodeId, {
+          source: 'retroactive_cascade',
+          force: false, // Don't force - let normal executeWorkflow logic apply (should be true now)
+          overrideExecuteWorkflow: executeWorkflowValue // 🔧 FIX: Pass the correct executeWorkflow value
+        });
+        
+        return { nodeId: rootNode.nodeId, result };
+      });
+
+      const results = await Promise.all(processingPromises);
+      
+      // Emit retroactive cascade completed event
+      this.dispatchEvent(new CustomEvent('RETROACTIVE_CASCADE_COMPLETED', {
+        detail: {
+          processedRootNodes: results.length,
+          results: results,
+          timestamp: new Date().toISOString(),
+        }
+      }));
+
+      console.log(`<core> nodeDataManager: ✅ Retroactive cascade completed for ${results.length} root nodes`);
+      
+    } catch (error) {
+      console.error('<core> nodeDataManager: Retroactive cascade failed:', error);
+
+      // Emit error event
+      this.dispatchEvent(new CustomEvent('RETROACTIVE_CASCADE_ERROR', {
+        detail: {
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        }
+      }));
+    }
+  }
+
+  /**
+   * Find nodes that have output data but stalled downstream processing
+   * @private
+   */
+  _findStalledRootNodes() {
+    const stalledRootNodes = [];
+
+    for (const [nodeId, nodeData] of this.nodes) {
+      // Check if node has output data
+      const hasOutputData = nodeData.output?.data && Object.keys(nodeData.output.data).length > 0;
+      if (!hasOutputData) continue;
+
+      // Check if this node has downstream connections
+      const hasDownstreamConnections = this._hasDownstreamConnections(nodeId);
+      if (!hasDownstreamConnections) continue;
+
+      // Check if downstream nodes are in a "waiting" or "stale" state
+      const hasStaleDownstream = this._hasStaleDownstreamNodes(nodeId, nodeData);
+      if (hasStaleDownstream) {
+        stalledRootNodes.push({ nodeId, nodeData });
+      }
+    }
+
+    return stalledRootNodes;
+  }
+
+  /**
+   * Check if a node has downstream connections
+   * @private
+   */
+  _hasDownstreamConnections(nodeId) {
+    for (const [connectionId, connection] of this.connections) {
+      if (connection.sourceNodeId === nodeId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check if downstream nodes are stale (haven't processed recent source data)
+   * @private
+   */
+  _hasStaleDownstreamNodes(sourceNodeId, sourceNodeData) {
+    const sourceTimestamp = new Date(sourceNodeData.output?.meta?.timestamp || 0).getTime();
+
+    for (const [connectionId, connection] of this.connections) {
+      if (connection.sourceNodeId === sourceNodeId) {
+        const targetNode = this.nodes.get(connection.targetNodeId);
+        if (!targetNode) continue;
+
+        const targetTimestamp = new Date(targetNode.output?.meta?.timestamp || 0).getTime();
+        const targetStatus = targetNode.output?.meta?.status;
+
+        // Consider downstream stale if:
+        // 1. Target is in "waiting" state (paused by executeWorkflow)
+        // 2. Target hasn't been processed at all (no timestamp)
+        // 3. Target was processed before source data was updated
+        const isStale = targetStatus === 'waiting' ||
+                        !targetTimestamp ||
+                        targetTimestamp < sourceTimestamp;
+
+        if (isStale) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get retroactive cascade statistics
+   */
+  getRetroactiveCascadeStats() {
+    const stalledNodes = this._findStalledRootNodes();
+    const waitingNodes = Array.from(this.nodes.values())
+      .filter(node => node.output?.meta?.status === 'waiting');
+
+    return {
+      stalledRootNodes: stalledNodes.length,
+      stalledNodeIds: stalledNodes.map((n) => n.nodeId),
+      waitingNodes: waitingNodes.length,
+      waitingNodeIds: waitingNodes.map(node => this._getNodeId(node)),
+      totalNodes: this.nodes.size,
+      totalConnections: this.connections.size,
+      canTriggerRetroactive: stalledNodes.length > 0,
+    };
+  }
+
+  // Helper to get node ID from node data
+  _getNodeId(nodeData) {
+    // Find the node ID from the nodes Map
+    for (const [nodeId, data] of this.nodes) {
+      if (data === nodeData) return nodeId;
+    }
+    return 'unknown';
   }
 
   /**
@@ -144,6 +360,7 @@ export class NodeDataManager extends EventTarget {
    * @param {boolean} triggerProcessing - Whether to trigger processing
    */
   async updateNodeData(nodeId, updates, triggerProcessing = false) {
+    console.log(`<core> nodeDataManager: updateNodeData ${nodeId}\nUpdates: `,updates,"\nTrigger: ",triggerProcessing)
     const currentData = this.nodes.get(nodeId);
     if (!currentData) {
       const error = new Error(`Node ${nodeId} not found for update`);
@@ -206,7 +423,7 @@ export class NodeDataManager extends EventTarget {
 
     // Trigger processing if requested
     if (triggerProcessing) {
-      console.log(`<core> nodeDataManager: Node ${nodeId} triggering processNode`)
+      console.log(`<core> nodeDataManager: Node ${nodeId} triggering f(processNode)`)
       await this.processNode(nodeId);
     }
 
@@ -310,8 +527,47 @@ export class NodeDataManager extends EventTarget {
       detail: { connectionId, sourceNodeId, targetNodeId, sourceHandle, targetHandle, replaced: !allowMultipleConnections }
     }));
 
-    // Trigger processing of target node
-    // await this.processNode(targetNodeId);
+    // ✨ ENHANCED: Connection-triggered execution with proper executeWorkflow control
+    const executeWorkflow = this.globalContext?.executeWorkflow ?? true;
+    
+    if (executeWorkflow) {
+      // Check if source node has data to process
+      const sourceData = this.nodes.get(sourceNodeId);
+      if (sourceData?.output?.data && Object.keys(sourceData.output.data).length > 0) {
+        console.log(`<core> nodeDataManager: ▶️ Connection-triggered execution: processing ${targetNodeId}`);
+        
+        // Trigger target processing with connection source context
+        const result = await this.processNode(targetNodeId, {
+          source: 'connection',
+          connectionId,
+          sourceNodeId
+        });
+        
+        if (result.status === 'completed') {
+          console.log(`<core> nodeDataManager: ✅ Connection-triggered processing completed for ${targetNodeId}`);
+        }
+      } else {
+        console.log(`<core> nodeDataManager: ⏸️ Connection created but source ${sourceNodeId} has no data to process`);
+      }
+    } else {
+      console.log(`<core> nodeDataManager: ⏸️ Connection created but executeWorkflow is disabled - target ${targetNodeId} will wait`);
+      
+      // Mark target node as waiting for workflow execution
+      const targetData = this.nodes.get(targetNodeId);
+      if (targetData && !targetData.output?.data) {
+        await this.updateNodeData(targetNodeId, {
+          output: {
+            meta: {
+              status: 'waiting',
+              timestamp: new Date().toISOString(),
+              pauseReason: 'executeWorkflow_disabled',
+              pauseSource: 'connection',
+              waitingFor: sourceNodeId
+            }
+          }
+        }, false);
+      }
+    }
 
     console.log(`<core> nodeDataManager: Connection added: ${sourceNodeId} -> ${targetNodeId} (multiple: ${allowMultipleConnections})`);
   }
@@ -405,28 +661,80 @@ export class NodeDataManager extends EventTarget {
   }
 
   /**
-   * Process a node (aggregate inputs and run plugin if configured)
+   * Process a node with comprehensive executeWorkflow control
    * @param {string} nodeId - Node ID
+   * @param {Object} options - Processing options
+   * @param {boolean} options.manual - Bypass executeWorkflow (for manual buttons)
+   * @param {boolean} options.force - Force execution regardless of executeWorkflow
+   * @param {string} options.source - Source of processing request for logging
+   * @param {boolean} options.overrideExecuteWorkflow - Override executeWorkflow value for this processing
    */
-  async processNode(nodeId) {
-    console.log(`<core> nodeDataManager: processNode ${nodeId}`)
+  async processNode(nodeId, options = {}) {
+    console.log(`<core> nodeDataManager: f(processNode) ${nodeId}`, options);
     const nodeData = this.nodes.get(nodeId);
     if (!nodeData) {
       console.warn(`Node ${nodeId} not found for processing`);
-      return;
+      return { status: 'error', reason: 'node_not_found' };
     }
 
     // Prevent concurrent processing of the same node
     if (this.processingQueue.has(nodeId)) {
       console.log(`<core> nodeDataManager: Node ${nodeId} is already being processed`);
-      return;
+      return { status: 'already_processing' };
     }
-    //console.log("processNode : Calling this._doProcessNode")
-    const processingPromise = this._doProcessNode(nodeId, nodeData);
+
+    // ✨ CORE FIX: executeWorkflow Gate with bypass options and override support
+    const { manual = false, force = false, source = 'unknown', overrideExecuteWorkflow = null } = options;
+    const executeWorkflow = overrideExecuteWorkflow !== null ? overrideExecuteWorkflow : (this.globalContext?.executeWorkflow ?? true);
+    const isInputNode = nodeData.meta.category === 'input';
+    const shouldBypass = manual || force;
+
+    // 🔍 DIAGNOSTIC: Log the executeWorkflow resolution
+    console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC processNode - overrideExecuteWorkflow: ${overrideExecuteWorkflow}, globalContext: ${this.globalContext?.executeWorkflow}, final: ${executeWorkflow}`);
+
+    if (!executeWorkflow && !shouldBypass) {
+      // Special handling for input nodes - allow processing own data, block downstream
+      if (isInputNode) {
+        console.log(`<core> nodeDataManager: Input node ${nodeId} processing allowed (user data entry)`);
+        // Process input node but prevent downstream cascade in _doProcessNode
+        const processingPromise = this._doProcessNode(nodeId, nodeData, { preventDownstream: true });
+        this.processingQueue.set(nodeId, processingPromise);
+        
+        try {
+          const result = await processingPromise;
+          return { status: 'completed', result, downstreamBlocked: true };
+        } finally {
+          this.processingQueue.delete(nodeId);
+        }
+      } else {
+        console.log(`<core> nodeDataManager: ⏸️ Workflow execution paused - skipping processing for ${nodeId} (source: ${source})`);
+        
+        // Emit workflow paused event for UI feedback
+        this._emitWorkflowPausedEvent(nodeId, source);
+        
+        // Mark node as waiting (enhanced status)
+        await this.updateNodeData(nodeId, {
+          output: {
+            meta: {
+              status: 'waiting',
+              timestamp: new Date().toISOString(),
+              pauseReason: 'executeWorkflow_disabled',
+              pauseSource: source
+            }
+          }
+        }, false); // Don't trigger processing
+        
+        return { status: 'paused', reason: 'executeWorkflow_disabled', source };
+      }
+    }
+
+    console.log(`<core> nodeDataManager: Executing ${nodeId} (executeWorkflow: ${executeWorkflow}, manual: ${manual}, force: ${force})`);
+    const processingPromise = this._doProcessNode(nodeId, nodeData, options);
     this.processingQueue.set(nodeId, processingPromise);
 
     try {
-      await processingPromise;
+      const result = await processingPromise;
+      return { status: 'completed', result };
     } finally {
       this.processingQueue.delete(nodeId);
     }
@@ -436,14 +744,19 @@ export class NodeDataManager extends EventTarget {
    * Internal node processing implementation
    * @private
    */
-  async _doProcessNode(nodeId, nodeData) {
+  async _doProcessNode(nodeId, nodeData, options = {}) {
+    const { preventDownstream = false } = options;
     try {
         // Skip processing for input nodes that generate their own data
       if (nodeData.meta.category === 'input' && 
           nodeData.output.data && 
           Object.keys(nodeData.output.data).length > 0) {
-        console.log(`<core> nodeDataManager: Skipping processing for input node ${nodeId} - has user data`);
-        return;
+
+          console.log(`<core> nodeDataManager: Skipping processing for input node ${nodeId} - has user data`);
+          //_triggerDownStreamProcessing(forInputNodes)
+          console.log(`<core> nodeDataManager f(_triggerDownstreamProcessing): ${nodeId}`)
+          await this._triggerDownstreamProcessing(nodeId, options.overrideExecuteWorkflow)
+          return;
       }
       // Set processing status
       await this.updateNodeData(nodeId, {
@@ -458,7 +771,7 @@ export class NodeDataManager extends EventTarget {
           errors: []
         }
       });
-      //console.log("_doProcessNode - emit: ",NodeDataEvents.NODE_PROCESSING)
+
       // Emit processing started event
       this.dispatchEvent(new CustomEvent(NodeDataEvents.NODE_PROCESSING, {
         detail: { nodeId, nodeData }
@@ -499,7 +812,7 @@ export class NodeDataManager extends EventTarget {
 
       // Emit processing completed event
       this.dispatchEvent(new CustomEvent(NodeDataEvents.NODE_PROCESSED, {
-        detail: { nodeId, result, success: true }
+        detail: { nodeId, result, success: true, downstreamBlocked: preventDownstream }
       }));
 
       // Clear FlowStateContext processing state
@@ -507,8 +820,12 @@ export class NodeDataManager extends EventTarget {
         this.flowStateContext.setNodeProcessing(nodeId, false);
       }
 
-      // Trigger processing of connected nodes
-      await this._triggerDownstreamProcessing(nodeId);
+      // ✨ ENHANCED: Conditional downstream processing
+      if (!preventDownstream) {
+        await this._triggerDownstreamProcessing(nodeId, options.overrideExecuteWorkflow);
+      } else {
+        console.log(`<core> nodeDataManager: Downstream processing blocked for ${nodeId} (executeWorkflow disabled)`);
+      }
 
     } catch (error) {
       console.error(`Error processing node ${nodeId}:`, error);
@@ -817,9 +1134,15 @@ export class NodeDataManager extends EventTarget {
    * Trigger processing of downstream connected nodes
    * @private
    */
-  async _triggerDownstreamProcessing(nodeId) {
-    // NON-BREAKING: Check ExecuteWorkflow flag, default to true if not configured
-    const executeWorkflow = this.globalContext?.executeWorkflow ?? true;
+  async _triggerDownstreamProcessing(nodeId, overrideExecuteWorkflow = null) {
+    // 🔍 DIAGNOSTIC: Use override if provided, otherwise check globalContext
+    const executeWorkflow = overrideExecuteWorkflow !== null ? overrideExecuteWorkflow : (this.globalContext?.executeWorkflow ?? true);
+    
+    // 🔍 DIAGNOSTIC: Log the values being used
+    console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC _triggerDownstreamProcessing - nodeId: ${nodeId}`);
+    console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC - overrideExecuteWorkflow: ${overrideExecuteWorkflow}`);
+    console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC - globalContext.executeWorkflow: ${this.globalContext?.executeWorkflow}`);
+    console.log(`<core> nodeDataManager: 🔍 DIAGNOSTIC - final executeWorkflow: ${executeWorkflow}`);
     
     if (!executeWorkflow) {
       console.log(`<core> nodeDataManager: ⏸️ Workflow execution paused - skipping downstream processing for ${nodeId}`);
@@ -839,24 +1162,63 @@ export class NodeDataManager extends EventTarget {
 
     // Process downstream nodes
     const processingPromises = downstreamNodes.map(targetNodeId =>
-      this.processNode(targetNodeId)
+      this.processNode(targetNodeId,{force:false,source:"retroactive_cascade",overrideExecuteWorkflow:true})
     );
 
     await Promise.all(processingPromises);
   }
 
   /**
-   * Emit workflow paused event for monitoring and UI feedback
+   * Enhanced workflow paused event with detailed context
    * @private
    */
-  _emitWorkflowPausedEvent(nodeId) {
+  _emitWorkflowPausedEvent(nodeId, source = 'unknown') {
+    const nodeData = this.nodes.get(nodeId);
+    const hasUpstreamData = this._hasUpstreamData(nodeId);
+    
     this.dispatchEvent(new CustomEvent('WORKFLOW_EXECUTION_PAUSED', {
       detail: {
         nodeId,
         timestamp: new Date().toISOString(),
-        reason: 'executeWorkflow_disabled'
+        reason: 'executeWorkflow_disabled',
+        source: source, // 'connection', 'manual', 'cascade', 'api'
+        canResume: true,
+        hasUpstreamData,
+        nodeCategory: nodeData?.meta?.category,
+        estimatedDownstreamNodes: this._countDownstreamNodes(nodeId)
       }
     }));
+  }
+
+  /**
+   * Check if node has upstream data available
+   * @private
+   */
+  _hasUpstreamData(nodeId) {
+    const nodeData = this.nodes.get(nodeId);
+    const connections = nodeData?.input?.connections || {};
+    
+    for (const [connectionId, connection] of Object.entries(connections)) {
+      const sourceData = this.nodes.get(connection.sourceNodeId);
+      if (sourceData?.output?.data && Object.keys(sourceData.output.data).length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Count downstream nodes for a given node
+   * @private
+   */
+  _countDownstreamNodes(nodeId) {
+    let count = 0;
+    for (const [connectionId, connection] of this.connections) {
+      if (connection.sourceNodeId === nodeId) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /**
@@ -1142,6 +1504,12 @@ export class NodeDataManager extends EventTarget {
       } catch (error) {
         console.warn(`Error during cleanup of node ${nodeId}:`, error);
       }
+    }
+
+    // Cleanup executeWorkflow subscription
+    if (this.executeWorkflowUnsubscribe) {
+      this.executeWorkflowUnsubscribe();
+      this.executeWorkflowUnsubscribe = null;
     }
 
     // Cleanup directive processor

@@ -620,7 +620,7 @@ function ProcessNew({ data, selected }) {
     }
   }, [currentNodeId, nodeData, setNodeProcessing, handlePluginError]);
 
-  // Enhanced manual processing with FlowState integration
+  // Enhanced manual processing with executeWorkflow bypass
   const handleManualProcess = useCallback(async () => {
     if (!nodeData) return;
 
@@ -628,14 +628,24 @@ function ProcessNew({ data, selected }) {
       // Set processing state through FlowState
       setNodeProcessing(currentNodeId, true);
       
-      // Execute plugin processing
-      await nodeDataManager.processNode(currentNodeId);
+      // ✨ ENHANCED: Manual button should ALWAYS work regardless of executeWorkflow
+      const result = await nodeDataManager.processNode(currentNodeId, {
+        manual: true,
+        source: 'manual_button'
+      });
+      
+      if (result.status === 'completed') {
+        console.log(`✅ Manual processing completed for ${currentNodeId}`);
+      } else if (result.status === 'paused') {
+        console.log(`⏸️ Processing paused for ${currentNodeId}: ${result.reason}`);
+        // This should not happen with manual: true, but log for debugging
+      }
       
       // Processing completion will be handled by FlowState automatically
     } catch (error) {
       // Clear processing state and handle errors
       setNodeProcessing(currentNodeId, false);
-      console.error('Error processing node:', error);
+      console.error(`❌ Manual processing failed for ${currentNodeId}:`, error);
     }
   }, [currentNodeId, nodeData, setNodeProcessing]);
 
